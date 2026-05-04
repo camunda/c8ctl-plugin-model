@@ -8,6 +8,7 @@ import { status } from './commands/status.js';
 import { reset } from './commands/reset.js';
 import { boundaryAppend } from './commands/boundary-append.js';
 import { cursorStatus } from './commands/cursor-status.js';
+import { selectFile } from './commands/select-file.js';
 
 const c8ctl = globalThis.c8ctl as C8ctlPluginRuntime;
 
@@ -26,6 +27,7 @@ export const metadata = {
         { name: 'select', description: 'Move the cursor to a specific element by ID' },
         { name: 'status', description: 'Print a compact JSON view of the semantic model' },
         { name: 'cursor-status', description: 'Print the current cursor element (id, type, name, file)' },
+        { name: 'select-file', description: 'Switch the active BPMN file; cursor is preserved or reset to first element' },
         { name: 'reset', description: 'Clear the cursor state file (keeps the .bpmn file)' },
       ],
       examples: [
@@ -41,6 +43,7 @@ export const metadata = {
         { command: 'c8ctl model select Gateway_1', description: 'Move cursor to Gateway_1' },
         { command: 'c8ctl model status', description: 'Print compact JSON view of all elements and flows' },
         { command: 'c8ctl model cursor-status', description: 'Print current cursor element id, type and name' },
+        { command: 'c8ctl model select-file other-process', description: 'Switch active file to other-process.bpmn; cursor preserved or reset' },
         { command: 'c8ctl model reset', description: 'Clear cursor state; .bpmn file is kept' },
       ],
     },
@@ -75,6 +78,9 @@ export const commands = {
         case 'cursor-status':
           await cursorStatus(rest, cwd);
           break;
+        case 'select-file':
+          await selectFile(rest, cwd);
+          break;
         case 'reset':
           await reset(rest, cwd);
           break;
@@ -105,6 +111,7 @@ Subcommands:
   select <id>                         Move cursor to element
   status                              Print compact JSON model view
   cursor-status                       Print current cursor element (id, type, name, file)
+  select-file <path>                  Switch the active BPMN file; cursor preserved or reset to first element
   reset                               Clear model cursor state (keeps .bpmn file)
   boundary-append <type> <label>      Attach boundary event to cursor element
     [hostElementId]                   Attach to specific element instead of cursor
