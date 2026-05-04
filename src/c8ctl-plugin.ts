@@ -1,6 +1,7 @@
 import type { C8ctlPluginRuntime } from '@camunda8/cli/runtime';
 import { init } from './commands/init.js';
 import { append } from './commands/append.js';
+import { appendFreezeCursor } from './commands/append-freeze-cursor.js';
 import { update } from './commands/update.js';
 import { select } from './commands/select.js';
 import { status } from './commands/status.js';
@@ -17,8 +18,8 @@ export const metadata = {
       description: 'Model a BPMN process from the CLI',
       examples: [
         { command: 'c8ctl model init my-process', description: 'Create a new process model' },
-        { command: 'c8ctl model append userTask "Review"', description: 'Append a task after cursor' },
-        { command: 'c8ctl model append endEvent Done Gateway_1', description: 'Append from Gateway_1 without moving cursor' },
+        { command: 'c8ctl model append userTask "Review"', description: 'Append a task after cursor; cursor moves to new element' },
+        { command: 'c8ctl model append-freeze-cursor endEvent Done Gateway_1', description: 'Append from Gateway_1 without moving cursor' },
         { command: 'c8ctl model update zeebe:taskDefinition.type my-job', description: 'Set job type on cursor element' },
         { command: 'c8ctl model update Activity_2 name "New Name"', description: 'Set name on a specific element' },
         { command: 'c8ctl model select Task_1', description: 'Move cursor to element' },
@@ -43,6 +44,9 @@ export const commands = {
           break;
         case 'append':
           await append(rest, cwd);
+          break;
+        case 'append-freeze-cursor':
+          await appendFreezeCursor(rest, cwd);
           break;
         case 'update':
           await update(rest, cwd);
@@ -75,8 +79,9 @@ function printHelp(): void {
 
 Subcommands:
   init <name>                         Create a new process model
-  append <type> <label> [sourceId]    Append element after cursor (or sourceId if given)
-                                      When sourceId is given, cursor stays unchanged
+  append <type> <label> [sourceId]    Append element after cursor (or sourceId); cursor moves
+  append-freeze-cursor <type> <label> Append element without moving the cursor
+    [sourceId]                        Source element (defaults to cursor)
   update [elementId] <property> <value...>
                                       Update cursor element (or elementId) property
   select <id>                         Move cursor to element

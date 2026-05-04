@@ -1,12 +1,11 @@
 import { addElement, loadFile, saveFile, getElementById } from '../bpmn.js';
-import { readState, writeState } from '../state.js';
+import { readState } from '../state.js';
+import { ELEMENT_ID_PATTERN } from './append.js';
 
-export const ELEMENT_ID_PATTERN = /^[A-Za-z]+_\d+$/;
-
-export async function append(args: string[], cwd: string): Promise<void> {
+export async function appendFreezeCursor(args: string[], cwd: string): Promise<void> {
   const [type, ...rest] = args;
   if (!type || rest.length === 0) {
-    throw new Error('Usage: c8ctl model append <type> <label> [sourceElementId]');
+    throw new Error('Usage: c8ctl model append-freeze-cursor <type> <label> [sourceElementId]');
   }
 
   const lastArg = rest[rest.length - 1];
@@ -14,7 +13,7 @@ export async function append(args: string[], cwd: string): Promise<void> {
 
   const labelParts = hasExplicitSource ? rest.slice(0, -1) : rest;
   const label = labelParts.join(' ');
-  if (!label) throw new Error('Usage: c8ctl model append <type> <label> [sourceElementId]');
+  if (!label) throw new Error('Usage: c8ctl model append-freeze-cursor <type> <label> [sourceElementId]');
 
   const state = readState(cwd);
   const sourceId = hasExplicitSource ? lastArg : state.cursor;
@@ -27,7 +26,6 @@ export async function append(args: string[], cwd: string): Promise<void> {
   const newEl = addElement(moddle, definitions, type, label, sourceId);
   await saveFile(state.file, moddle, definitions);
 
-  writeState(cwd, { ...state, cursor: newEl.id });
-  console.log(`Appended ${newEl.$type} '${label}' (${newEl.id})`);
-  console.log(`Cursor: ${newEl.id}`);
+  console.log(`Appended ${newEl.$type} '${label}' (${newEl.id}) from ${sourceId}`);
+  console.log(`Cursor: ${state.cursor} (unchanged)`);
 }
