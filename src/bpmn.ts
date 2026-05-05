@@ -82,6 +82,73 @@ function normalizeBpmnType(type: string): string {
   return `bpmn:${capitalized}`;
 }
 
+const TYPED_EVENT_GROUPS: Array<{ suffix: string; bpmnType: string; defs: Record<string, string> }> = [
+  {
+    suffix: '-intermediate-catch-event',
+    bpmnType: 'bpmn:IntermediateCatchEvent',
+    defs: {
+      timer: 'bpmn:TimerEventDefinition',
+      message: 'bpmn:MessageEventDefinition',
+      signal: 'bpmn:SignalEventDefinition',
+      conditional: 'bpmn:ConditionalEventDefinition',
+      link: 'bpmn:LinkEventDefinition',
+    },
+  },
+  {
+    suffix: '-intermediate-throw-event',
+    bpmnType: 'bpmn:IntermediateThrowEvent',
+    defs: {
+      message: 'bpmn:MessageEventDefinition',
+      signal: 'bpmn:SignalEventDefinition',
+      escalation: 'bpmn:EscalationEventDefinition',
+      compensation: 'bpmn:CompensateEventDefinition',
+      link: 'bpmn:LinkEventDefinition',
+    },
+  },
+  {
+    suffix: '-end-event',
+    bpmnType: 'bpmn:EndEvent',
+    defs: {
+      message: 'bpmn:MessageEventDefinition',
+      signal: 'bpmn:SignalEventDefinition',
+      error: 'bpmn:ErrorEventDefinition',
+      escalation: 'bpmn:EscalationEventDefinition',
+      terminate: 'bpmn:TerminateEventDefinition',
+      compensation: 'bpmn:CompensateEventDefinition',
+      cancel: 'bpmn:CancelEventDefinition',
+    },
+  },
+];
+
+const DEF_TYPE_TO_TRIGGER: Record<string, string> = {
+  'bpmn:TimerEventDefinition': 'timer',
+  'bpmn:MessageEventDefinition': 'message',
+  'bpmn:SignalEventDefinition': 'signal',
+  'bpmn:ConditionalEventDefinition': 'conditional',
+  'bpmn:LinkEventDefinition': 'link',
+  'bpmn:EscalationEventDefinition': 'escalation',
+  'bpmn:CompensateEventDefinition': 'compensation',
+  'bpmn:ErrorEventDefinition': 'error',
+  'bpmn:TerminateEventDefinition': 'terminate',
+  'bpmn:CancelEventDefinition': 'cancel',
+};
+
+function parseElementType(type: string): { bpmnType: string; defType?: string } {
+  for (const { suffix, bpmnType, defs } of TYPED_EVENT_GROUPS) {
+    if (type.endsWith(suffix)) {
+      const trigger = type.slice(0, -suffix.length);
+      if (trigger === '') return { bpmnType };
+      const defType = defs[trigger];
+      if (!defType) {
+        const valid = Object.keys(defs).map((k) => `'${k}${suffix}'`).join(', ');
+        throw new Error(`Unknown typed event '${type}'. Supported: ${valid}`);
+      }
+      return { bpmnType, defType };
+    }
+  }
+  return { bpmnType: normalizeBpmnType(type) };
+}
+
 function nextId(process: ModdleElement, prefix: string): string {
   let max = 0;
   for (const el of process.flowElements ?? []) {
@@ -89,6 +156,17 @@ function nextId(process: ModdleElement, prefix: string): string {
     if (m) max = Math.max(max, parseInt(m[1], 10));
   }
   return `${prefix}_${max + 1}`;
+}
+
+function nextEventDefId(process: ModdleElement): string {
+  let max = 0;
+  for (const el of process.flowElements ?? []) {
+    for (const def of (el.eventDefinitions ?? []) as ModdleElement[]) {
+      const m = (def.id as string)?.match(/^EventDefinition_(\d+)$/);
+      if (m) max = Math.max(max, parseInt(m[1], 10));
+    }
+  }
+  return `EventDefinition_${max + 1}`;
 }
 
 function idPrefix(bpmnType: string): string {
@@ -105,12 +183,16 @@ export function addElement(
   name: string,
   sourceId: string,
 ): ModdleElement {
-  const bpmnType = normalizeBpmnType(type);
+  const { bpmnType, defType } = parseElementType(type);
   const process = getProcess(definitions);
 
   const prefix = idPrefix(bpmnType);
   const newId = nextId(process, prefix);
-  const newEl = moddle.create(bpmnType, { id: newId, name });
+  const elProps: Record<string, unknown> = { id: newId, name };
+  if (defType) {
+    elProps.eventDefinitions = [moddle.create(defType, { id: nextEventDefId(process) })];
+  }
+  const newEl = moddle.create(bpmnType, elProps);
 
   const source = getElementById(definitions, sourceId);
   if (!source) throw new Error(`Source element '${sourceId}' not found`);
@@ -207,8 +289,7 @@ export function addBoundaryEvent(
 
   const { defType, cancelActivity } = parseBoundaryEventType(eventType);
 
-  const defId = nextId(process, 'EventDefinition');
-  const eventDef = moddle.create(defType, { id: defId });
+  const eventDef = moddle.create(defType, { id: nextEventDefId(process) });
 
   const boundaryId = nextId(process, 'BoundaryEvent');
   const boundaryEvent = moddle.create('bpmn:BoundaryEvent', {
@@ -367,10 +448,13 @@ export function toStatusJson(definitions: ModdleElement, cursor: string): Record
     .map((e: ModdleElement) => {
       const local = (e.$type as string).replace('bpmn:', '');
       const type = local.charAt(0).toLowerCase() + local.slice(1);
+      const defs: ModdleElement[] = e.eventDefinitions ?? [];
+      const eventDefinition = defs.length > 0 ? (DEF_TYPE_TO_TRIGGER[defs[0].$type as string] ?? defs[0].$type) : undefined;
       const entry: Record<string, unknown> = {
         id: e.id,
         type,
         name: e.name,
+        ...(eventDefinition ? { eventDefinition } : {}),
         ...(e.attachedToRef
           ? {
               attachedToRef: e.attachedToRef?.id ?? e.attachedToRef,

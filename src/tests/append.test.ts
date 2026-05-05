@@ -17,7 +17,24 @@ const ELEMENT_TYPES: Array<[string, string]> = [
   ['call-activity', 'callActivity'],
   ['sub-process', 'subProcess'],
   ['intermediate-catch-event', 'intermediateCatchEvent'],
+  ['timer-intermediate-catch-event', 'intermediateCatchEvent'],
+  ['message-intermediate-catch-event', 'intermediateCatchEvent'],
+  ['signal-intermediate-catch-event', 'intermediateCatchEvent'],
+  ['conditional-intermediate-catch-event', 'intermediateCatchEvent'],
+  ['link-intermediate-catch-event', 'intermediateCatchEvent'],
   ['intermediate-throw-event', 'intermediateThrowEvent'],
+  ['message-intermediate-throw-event', 'intermediateThrowEvent'],
+  ['signal-intermediate-throw-event', 'intermediateThrowEvent'],
+  ['escalation-intermediate-throw-event', 'intermediateThrowEvent'],
+  ['compensation-intermediate-throw-event', 'intermediateThrowEvent'],
+  ['link-intermediate-throw-event', 'intermediateThrowEvent'],
+  ['message-end-event', 'endEvent'],
+  ['signal-end-event', 'endEvent'],
+  ['error-end-event', 'endEvent'],
+  ['escalation-end-event', 'endEvent'],
+  ['terminate-end-event', 'endEvent'],
+  ['compensation-end-event', 'endEvent'],
+  ['cancel-end-event', 'endEvent'],
 ];
 
 for (const [type, expectedType] of ELEMENT_TYPES) {
@@ -119,6 +136,90 @@ test('append throws when source element not found', async () => {
     await assert.rejects(
       () => append(['user-task', 'Task', 'Activity_99'], cwd),
       /not found/,
+    );
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('append typed event shows eventDefinition in status', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupModel('proc', cwd);
+    await append(['timer-intermediate-catch-event', 'Wait'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['name'] === 'Wait');
+    assert.equal(el?.['type'], 'intermediateCatchEvent');
+    assert.equal(el?.['eventDefinition'], 'timer');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('append typed end event shows eventDefinition in status', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupModel('proc', cwd);
+    await append(['error-end-event', 'Fail'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['name'] === 'Fail');
+    assert.equal(el?.['type'], 'endEvent');
+    assert.equal(el?.['eventDefinition'], 'error');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('append untyped event has no eventDefinition in status', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupModel('proc', cwd);
+    await append(['intermediate-catch-event', 'Catch'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['name'] === 'Catch');
+    assert.ok(!('eventDefinition' in (el ?? {})));
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('append multiple typed events get unique EventDefinition IDs', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupModel('proc', cwd);
+    await append(['timer-intermediate-catch-event', 'Timer'], cwd);
+    await append(['message-intermediate-catch-event', 'Message'], cwd);
+
+    const { loadFile, getProcess: gp } = await import('../bpmn.js');
+    const { readState } = await import('../state.js');
+    const state = readState(cwd);
+    const { definitions } = await loadFile(state.file);
+    const process = gp(definitions);
+    const defs = (process.flowElements as Array<Record<string, unknown>>)
+      .flatMap((el) => (el['eventDefinitions'] as Array<Record<string, unknown>> | undefined) ?? [])
+      .map((d) => d['id'] as string);
+    assert.equal(new Set(defs).size, defs.length, 'all EventDefinition IDs must be unique');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('append throws for unknown typed event trigger', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupModel('proc', cwd);
+    await assert.rejects(
+      () => append(['link-end-event', 'End'], cwd),
+      /Unknown typed event/,
     );
   } finally {
     cleanup(cwd);

@@ -126,6 +126,20 @@ Element types (append):
   exclusive-gateway, parallel-gateway, inclusive-gateway, call-activity,
   sub-process, intermediate-catch-event, intermediate-throw-event
 
+Typed intermediate catch events (append):
+  timer-intermediate-catch-event, message-intermediate-catch-event,
+  signal-intermediate-catch-event, conditional-intermediate-catch-event,
+  link-intermediate-catch-event
+
+Typed intermediate throw events (append):
+  message-intermediate-throw-event, signal-intermediate-throw-event,
+  escalation-intermediate-throw-event, compensation-intermediate-throw-event,
+  link-intermediate-throw-event
+
+Typed end events (append):
+  message-end-event, signal-end-event, error-end-event, escalation-end-event,
+  terminate-end-event, compensation-end-event, cancel-end-event
+
 Update properties:
   name                                Element name
   zeebe:taskDefinition.type           Zeebe job type

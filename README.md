@@ -66,6 +66,13 @@ npm test
 | --- | --- |
 | `start-event` | `StartEvent` |
 | `end-event` | `EndEvent` |
+| `message-end-event` | `EndEvent` |
+| `signal-end-event` | `EndEvent` |
+| `error-end-event` | `EndEvent` |
+| `escalation-end-event` | `EndEvent` |
+| `terminate-end-event` | `EndEvent` |
+| `compensation-end-event` | `EndEvent` |
+| `cancel-end-event` | `EndEvent` |
 | `task` | `Activity` |
 | `user-task` | `Activity` |
 | `service-task` | `Activity` |
@@ -76,7 +83,17 @@ npm test
 | `call-activity` | `Activity` |
 | `sub-process` | `Activity` |
 | `intermediate-catch-event` | `Event` |
+| `timer-intermediate-catch-event` | `Event` |
+| `message-intermediate-catch-event` | `Event` |
+| `signal-intermediate-catch-event` | `Event` |
+| `conditional-intermediate-catch-event` | `Event` |
+| `link-intermediate-catch-event` | `Event` |
 | `intermediate-throw-event` | `Event` |
+| `message-intermediate-throw-event` | `Event` |
+| `signal-intermediate-throw-event` | `Event` |
+| `escalation-intermediate-throw-event` | `Event` |
+| `compensation-intermediate-throw-event` | `Event` |
+| `link-intermediate-throw-event` | `Event` |
 
 ### Boundary event types — `boundary-append`
 
