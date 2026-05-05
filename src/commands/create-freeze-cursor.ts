@@ -1,7 +1,8 @@
 import { createElement, loadFile, saveFile } from '../bpmn.js';
 import { readState } from '../state.js';
+import type { CommandLogger } from '../logger.js';
 
-export async function createFreezeCursor(args: string[], cwd: string): Promise<void> {
+export async function createFreezeCursor(args: string[], cwd: string, logger?: CommandLogger): Promise<void> {
   const [type, ...rest] = args;
   if (!type || rest.length === 0) {
     throw new Error('Usage: c8ctl model create-freeze-cursor <type> <label>');
@@ -14,6 +15,6 @@ export async function createFreezeCursor(args: string[], cwd: string): Promise<v
   const newEl = createElement(moddle, definitions, type, label);
   await saveFile(state.file, moddle, definitions);
 
-  console.log(`Created ${newEl.$type} '${label}' (${newEl.id})`);
-  console.log(`Cursor: ${state.cursor} (unchanged)`);
+  logger?.success(`Created ${newEl.$type} '${label}' (${newEl.id})`);
+  logger?.info(`Cursor: ${state.cursor} (unchanged)`);
 }

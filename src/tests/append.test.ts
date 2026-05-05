@@ -11,6 +11,10 @@ const ELEMENT_TYPES: Array<[string, string]> = [
   ['user-task', 'userTask'],
   ['service-task', 'serviceTask'],
   ['script-task', 'scriptTask'],
+  ['send-task', 'sendTask'],
+  ['receive-task', 'receiveTask'],
+  ['manual-task', 'manualTask'],
+  ['business-rule-task', 'businessRuleTask'],
   ['exclusive-gateway', 'exclusiveGateway'],
   ['parallel-gateway', 'parallelGateway'],
   ['inclusive-gateway', 'inclusiveGateway'],
@@ -25,7 +29,6 @@ const ELEMENT_TYPES: Array<[string, string]> = [
   ['escalation-start-event', 'startEvent'],
   ['compensation-start-event', 'startEvent'],
   ['conditional-start-event', 'startEvent'],
-  ['intermediate-catch-event', 'intermediateCatchEvent'],
   ['timer-intermediate-catch-event', 'intermediateCatchEvent'],
   ['message-intermediate-catch-event', 'intermediateCatchEvent'],
   ['signal-intermediate-catch-event', 'intermediateCatchEvent'],
@@ -185,17 +188,14 @@ test('append typed end event shows eventDefinition in status', async () => {
   }
 });
 
-test('append untyped event has no eventDefinition in status', async () => {
+test('append intermediate-catch-event throws and directs to typed variants', async () => {
   const cwd = tmpDir();
   try {
     await setupModel('proc', cwd);
-    await append(['intermediate-catch-event', 'Catch'], cwd);
-
-    const status = await getStatus(cwd);
-    const proc = status['process'] as Record<string, unknown>;
-    const elements = proc['elements'] as Array<Record<string, unknown>>;
-    const el = elements.find((e) => e['name'] === 'Catch');
-    assert.ok(!('eventDefinition' in (el ?? {})));
+    await assert.rejects(
+      () => append(['intermediate-catch-event', 'Catch'], cwd),
+      /typed variant/,
+    );
   } finally {
     cleanup(cwd);
   }

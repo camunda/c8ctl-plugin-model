@@ -1,7 +1,8 @@
 import { loadFile, getElementById } from '../bpmn.js';
 import { readState, writeState } from '../state.js';
+import type { CommandLogger } from '../logger.js';
 
-export async function select(args: string[], cwd: string): Promise<void> {
+export async function select(args: string[], cwd: string, logger?: CommandLogger): Promise<void> {
   const id = args[0];
   if (!id) throw new Error('Usage: c8ctl model select <elementId>');
 
@@ -11,5 +12,5 @@ export async function select(args: string[], cwd: string): Promise<void> {
   if (!el) throw new Error(`Element '${id}' not found`);
 
   writeState(cwd, { ...state, cursor: id });
-  console.log(`Cursor: ${id} (${el.$type}, name: '${el.name ?? ''}')`);
+  logger?.info(`Cursor: ${id} (${el.$type}, name: '${el.name ?? ''}')`);
 }

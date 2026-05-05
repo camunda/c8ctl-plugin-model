@@ -72,70 +72,71 @@ export const commands = {
   model: async (args: string[]) => {
     const [subcommand, ...rest] = args;
     const cwd = c8ctl.cwd;
+    const logger = c8ctl.getLogger();
 
     try {
       switch (subcommand) {
         case 'init':
-          await init(rest, cwd);
+          await init(rest, cwd, logger);
           break;
         case 'append':
-          await append(rest, cwd);
+          await append(rest, cwd, logger);
           break;
         case 'append-freeze-cursor':
-          await appendFreezeCursor(rest, cwd);
+          await appendFreezeCursor(rest, cwd, logger);
           break;
         case 'create':
-          await create(rest, cwd);
+          await create(rest, cwd, logger);
           break;
         case 'create-freeze-cursor':
-          await createFreezeCursor(rest, cwd);
+          await createFreezeCursor(rest, cwd, logger);
           break;
         case 'connect':
-          await connect(rest, cwd);
+          await connect(rest, cwd, logger);
           break;
         case 'add-child':
-          await addChild(rest, cwd);
+          await addChild(rest, cwd, logger);
           break;
         case 'add-child-freeze-cursor':
-          await addChildFreezeCursor(rest, cwd);
+          await addChildFreezeCursor(rest, cwd, logger);
           break;
         case 'select-parent':
-          await selectParent(rest, cwd);
+          await selectParent(rest, cwd, logger);
           break;
         case 'update':
-          await update(rest, cwd);
+          await update(rest, cwd, logger);
           break;
         case 'select':
-          await select(rest, cwd);
+          await select(rest, cwd, logger);
           break;
         case 'status':
-          await status(rest, cwd);
+          await status(rest, cwd, logger);
           break;
         case 'cursor-status':
-          await cursorStatus(rest, cwd);
+          await cursorStatus(rest, cwd, logger);
           break;
         case 'select-file':
-          await selectFile(rest, cwd);
+          await selectFile(rest, cwd, logger);
           break;
         case 'reset':
-          await reset(rest, cwd);
+          await reset(rest, cwd, logger);
           break;
         case 'boundary-append':
-          await boundaryAppend(rest, cwd);
+          await boundaryAppend(rest, cwd, logger);
           break;
         default:
-          printHelp();
+          printHelp(logger);
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      console.error(`Error: ${message}`);
+      logger.error(message);
       process.exit(1);
     }
   },
 };
 
-function printHelp(): void {
-  console.log(`c8ctl model — BPMN process modeler
+function printHelp(logger: ReturnType<typeof c8ctl.getLogger>): void {
+  logger.output(`c8ctl model — BPMN process modeler
 
 Subcommands:
   init <name>                         Create a new process model

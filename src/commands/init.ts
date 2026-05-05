@@ -2,8 +2,9 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { createModdle, createMinimalBpmn, saveFile } from '../bpmn.js';
 import { writeState, stateExists } from '../state.js';
+import type { CommandLogger } from '../logger.js';
 
-export async function init(args: string[], cwd: string): Promise<void> {
+export async function init(args: string[], cwd: string, logger?: CommandLogger): Promise<void> {
   const name = args[0];
   if (!name) throw new Error('Usage: c8ctl model init <name>');
 
@@ -21,6 +22,6 @@ export async function init(args: string[], cwd: string): Promise<void> {
   await saveFile(filePath, moddle, definitions);
   writeState(cwd, { file: filePath, cursor: 'StartEvent_1' });
 
-  console.log(`Created ${name}.bpmn`);
-  console.log(`Cursor: StartEvent_1`);
+  logger?.success(`Created ${name}.bpmn`);
+  logger?.info(`Cursor: StartEvent_1`);
 }

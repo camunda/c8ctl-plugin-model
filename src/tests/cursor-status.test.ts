@@ -49,16 +49,15 @@ test('cursor-status output is valid JSON with required fields', async () => {
   try {
     await setupModel('proc', cwd);
 
-    const lines: string[] = [];
-    const orig = console.log;
-    console.log = (...args: unknown[]) => lines.push(args.join(' '));
-    try {
-      await cursorStatus([], cwd);
-    } finally {
-      console.log = orig;
-    }
+    const captured: unknown[] = [];
+    const logger = {
+      info() {}, warn() {}, error() {}, success() {}, output() {},
+      json(data: unknown) { captured.push(data); },
+    };
+    await cursorStatus([], cwd, logger);
 
-    const output = JSON.parse(lines.join('\n')) as Record<string, unknown>;
+    assert.equal(captured.length, 1);
+    const output = captured[0] as Record<string, unknown>;
     assert.ok('cursor' in output);
     assert.ok('type' in output);
     assert.ok('name' in output);

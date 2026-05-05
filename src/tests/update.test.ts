@@ -10,6 +10,31 @@ async function setupWithTask(cwd: string): Promise<void> {
   await append(['user-task', 'Review'], cwd); // Activity_1
 }
 
+async function setupWithGateway(cwd: string): Promise<void> {
+  await setupModel('proc', cwd);
+  await append(['exclusive-gateway', 'Decision'], cwd); // Gateway_1
+}
+
+async function setupWithEndEvent(cwd: string): Promise<void> {
+  await setupModel('proc', cwd);
+  await append(['end-event', 'End'], cwd); // EndEvent_1
+}
+
+async function setupWithSubProcess(cwd: string): Promise<void> {
+  await setupModel('proc', cwd);
+  await append(['sub-process', 'Sub'], cwd); // Activity_1
+}
+
+async function setupWithCallActivity(cwd: string): Promise<void> {
+  await setupModel('proc', cwd);
+  await append(['call-activity', 'Call'], cwd); // Activity_1
+}
+
+async function setupWithAdHoc(cwd: string): Promise<void> {
+  await setupModel('proc', cwd);
+  await append(['ad-hoc-sub-process', 'Ad Hoc'], cwd); // Activity_1
+}
+
 test('update name on cursor element', async () => {
   const cwd = tmpDir();
   try {
@@ -441,6 +466,445 @@ test('update throws without property and value', async () => {
   try {
     await setupWithTask(cwd);
     await assert.rejects(() => update([], cwd), /Usage/);
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+// --- zeebe:taskDefinition (activities only) ---
+
+test('update zeebe:taskDefinition.type on sub-process', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithSubProcess(cwd);
+    await update(['zeebe:taskDefinition.type', 'my-job'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['id'] === 'Activity_1');
+    const zeebe = el?.['zeebe'] as Record<string, unknown>;
+    const td = zeebe?.['taskDefinition'] as Record<string, unknown>;
+    assert.equal(td?.['type'], 'my-job');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update zeebe:taskDefinition.type on call-activity', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithCallActivity(cwd);
+    await update(['zeebe:taskDefinition.type', 'my-job'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['id'] === 'Activity_1');
+    const zeebe = el?.['zeebe'] as Record<string, unknown>;
+    const td = zeebe?.['taskDefinition'] as Record<string, unknown>;
+    assert.equal(td?.['type'], 'my-job');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update zeebe:taskDefinition.type throws on exclusive-gateway', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithGateway(cwd);
+    await assert.rejects(() => update(['zeebe:taskDefinition.type', 'my-job'], cwd), /activities/);
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update zeebe:taskDefinition.type throws on end-event', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithEndEvent(cwd);
+    await assert.rejects(() => update(['zeebe:taskDefinition.type', 'my-job'], cwd), /activities/);
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update zeebe:taskDefinition.retries throws on exclusive-gateway', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithGateway(cwd);
+    await assert.rejects(() => update(['zeebe:taskDefinition.retries', '3'], cwd), /activities/);
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+// --- zeebe:calledDecision (business-rule-task only) ---
+
+test('update zeebe:calledDecision.decisionId on business-rule-task', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupModel('proc', cwd);
+    await append(['business-rule-task', 'Evaluate'], cwd); // Activity_1
+
+    await update(['zeebe:calledDecision.decisionId', 'my-decision'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['id'] === 'Activity_1');
+    const zeebe = el?.['zeebe'] as Record<string, unknown>;
+    const cd = zeebe?.['calledDecision'] as Record<string, unknown>;
+    assert.equal(cd?.['decisionId'], 'my-decision');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update zeebe:calledDecision.resultVariable on business-rule-task', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupModel('proc', cwd);
+    await append(['business-rule-task', 'Evaluate'], cwd);
+
+    await update(['zeebe:calledDecision.resultVariable', 'decisionResult'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['id'] === 'Activity_1');
+    const zeebe = el?.['zeebe'] as Record<string, unknown>;
+    const cd = zeebe?.['calledDecision'] as Record<string, unknown>;
+    assert.equal(cd?.['resultVariable'], 'decisionResult');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update zeebe:calledDecision sets both fields independently', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupModel('proc', cwd);
+    await append(['business-rule-task', 'Evaluate'], cwd);
+
+    await update(['zeebe:calledDecision.decisionId', 'my-decision'], cwd);
+    await update(['zeebe:calledDecision.resultVariable', 'decisionResult'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['id'] === 'Activity_1');
+    const zeebe = el?.['zeebe'] as Record<string, unknown>;
+    const cd = zeebe?.['calledDecision'] as Record<string, unknown>;
+    assert.equal(cd?.['decisionId'], 'my-decision');
+    assert.equal(cd?.['resultVariable'], 'decisionResult');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update zeebe:calledDecision.decisionId updates existing value', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupModel('proc', cwd);
+    await append(['business-rule-task', 'Evaluate'], cwd);
+
+    await update(['zeebe:calledDecision.decisionId', 'old-decision'], cwd);
+    await update(['zeebe:calledDecision.decisionId', 'new-decision'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['id'] === 'Activity_1');
+    const zeebe = el?.['zeebe'] as Record<string, unknown>;
+    const cd = zeebe?.['calledDecision'] as Record<string, unknown>;
+    assert.equal(cd?.['decisionId'], 'new-decision');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update zeebe:calledDecision.decisionId throws on service-task', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupModel('proc', cwd);
+    await append(['service-task', 'Do Work'], cwd);
+    await assert.rejects(
+      () => update(['zeebe:calledDecision.decisionId', 'my-decision'], cwd),
+      /business-rule-task/,
+    );
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update zeebe:calledDecision.resultVariable throws on service-task', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupModel('proc', cwd);
+    await append(['service-task', 'Do Work'], cwd);
+    await assert.rejects(
+      () => update(['zeebe:calledDecision.resultVariable', 'result'], cwd),
+      /business-rule-task/,
+    );
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update zeebe:calledDecision.decisionId throws on exclusive-gateway', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithGateway(cwd);
+    await assert.rejects(
+      () => update(['zeebe:calledDecision.decisionId', 'my-decision'], cwd),
+      /business-rule-task/,
+    );
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+// --- zeebe:input / zeebe:output (activities only) ---
+
+test('update zeebe:input throws on exclusive-gateway', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithGateway(cwd);
+    await assert.rejects(() => update(['zeebe:input', '=x', 'localX'], cwd), /activities/);
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update zeebe:output throws on exclusive-gateway', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithGateway(cwd);
+    await assert.rejects(() => update(['zeebe:output', '=result', 'out'], cwd), /activities/);
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update zeebe:input throws on end-event', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithEndEvent(cwd);
+    await assert.rejects(() => update(['zeebe:input', '=x', 'localX'], cwd), /activities/);
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+// --- zeebe:header (activities only) ---
+
+test('update zeebe:header throws on exclusive-gateway', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithGateway(cwd);
+    await assert.rejects(() => update(['zeebe:header', 'timeout', '30s'], cwd), /activities/);
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+// --- zeebe:property (any element) ---
+
+test('update zeebe:property on exclusive-gateway', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithGateway(cwd);
+    await update(['zeebe:property', 'meta', 'val'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['id'] === 'Gateway_1');
+    const zeebe = el?.['zeebe'] as Record<string, unknown>;
+    const props = zeebe?.['properties'] as Array<Record<string, unknown>>;
+    const prop = props?.find((p) => p['name'] === 'meta');
+    assert.ok(prop, 'zeebe property should exist on gateway');
+    assert.equal(prop['value'], 'val');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update zeebe:property on end-event', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithEndEvent(cwd);
+    await update(['zeebe:property', 'meta', 'val'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['id'] === 'EndEvent_1');
+    const zeebe = el?.['zeebe'] as Record<string, unknown>;
+    const props = zeebe?.['properties'] as Array<Record<string, unknown>>;
+    const prop = props?.find((p) => p['name'] === 'meta');
+    assert.ok(prop, 'zeebe property should exist on end event');
+    assert.equal(prop['value'], 'val');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+// --- isInterrupting (start events only) ---
+
+test('update isInterrupting true on start-event', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupModel('proc', cwd);
+    await create(['error-start-event', 'On Error'], cwd); // StartEvent_2
+    await update(['isInterrupting', 'false'], cwd);
+    await update(['isInterrupting', 'true'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['id'] === 'StartEvent_2');
+    assert.notEqual(el?.['isInterrupting'], false);
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update isInterrupting throws on user-task', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithTask(cwd);
+    await assert.rejects(() => update(['isInterrupting', 'false'], cwd), /start events/);
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update isInterrupting throws on exclusive-gateway', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithGateway(cwd);
+    await assert.rejects(() => update(['isInterrupting', 'false'], cwd), /start events/);
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+// --- multi-instance.type (activities only) ---
+
+test('update multi-instance.type on sub-process', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithSubProcess(cwd);
+    await update(['multi-instance.type', 'parallel'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['id'] === 'Activity_1');
+    const lc = el?.['loopCharacteristics'] as Record<string, unknown>;
+    assert.equal(lc?.['type'], 'multiInstance');
+    assert.equal(lc?.['isSequential'], false);
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update multi-instance.type on call-activity', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithCallActivity(cwd);
+    await update(['multi-instance.type', 'sequential'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['id'] === 'Activity_1');
+    const lc = el?.['loopCharacteristics'] as Record<string, unknown>;
+    assert.equal(lc?.['isSequential'], true);
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update multi-instance.type throws on exclusive-gateway', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithGateway(cwd);
+    await assert.rejects(() => update(['multi-instance.type', 'parallel'], cwd), /activities/);
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update multi-instance.type throws on end-event', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithEndEvent(cwd);
+    await assert.rejects(() => update(['multi-instance.type', 'parallel'], cwd), /activities/);
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+// --- zeebe:loopCharacteristics (activities only) ---
+
+test('update zeebe:loopCharacteristics.inputCollection throws on exclusive-gateway', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithGateway(cwd);
+    await assert.rejects(
+      () => update(['zeebe:loopCharacteristics.inputCollection', '=items'], cwd),
+      /activities/,
+    );
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+// --- ad-hoc.ordering ---
+
+test('update ad-hoc.ordering Parallel sets ordering on ad-hoc sub-process', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithAdHoc(cwd);
+    await update(['ad-hoc.ordering', 'Parallel'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['id'] === 'Activity_1');
+    assert.equal(el?.['ordering'], 'Parallel');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update ad-hoc.ordering throws for invalid value', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithAdHoc(cwd);
+    await assert.rejects(() => update(['ad-hoc.ordering', 'Loop'], cwd), /Sequential.*Parallel|Parallel.*Sequential/);
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+// --- ad-hoc.cancelRemainingInstances ---
+
+test('update ad-hoc.cancelRemainingInstances true', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithAdHoc(cwd);
+    await update(['ad-hoc.cancelRemainingInstances', 'false'], cwd);
+    await update(['ad-hoc.cancelRemainingInstances', 'true'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['id'] === 'Activity_1');
+    assert.equal(el?.['cancelRemainingInstances'], true);
   } finally {
     cleanup(cwd);
   }

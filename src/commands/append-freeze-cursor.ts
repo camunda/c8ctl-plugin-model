@@ -1,8 +1,9 @@
 import { addElement, loadFile, saveFile, getElementById } from '../bpmn.js';
 import { readState } from '../state.js';
 import { ELEMENT_ID_PATTERN } from './append.js';
+import type { CommandLogger } from '../logger.js';
 
-export async function appendFreezeCursor(args: string[], cwd: string): Promise<void> {
+export async function appendFreezeCursor(args: string[], cwd: string, logger?: CommandLogger): Promise<void> {
   const [type, ...rest] = args;
   if (!type || rest.length === 0) {
     throw new Error('Usage: c8ctl model append-freeze-cursor <type> <label> [sourceElementId]');
@@ -26,6 +27,6 @@ export async function appendFreezeCursor(args: string[], cwd: string): Promise<v
   const newEl = addElement(moddle, definitions, type, label, sourceId);
   await saveFile(state.file, moddle, definitions);
 
-  console.log(`Appended ${newEl.$type} '${label}' (${newEl.id}) from ${sourceId}`);
-  console.log(`Cursor: ${state.cursor} (unchanged)`);
+  logger?.success(`Appended ${newEl.$type} '${label}' (${newEl.id}) from ${sourceId}`);
+  logger?.info(`Cursor: ${state.cursor} (unchanged)`);
 }

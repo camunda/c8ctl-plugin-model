@@ -1,9 +1,10 @@
 import { addElement, loadFile, saveFile, getElementById } from '../bpmn.js';
 import { readState, writeState } from '../state.js';
+import type { CommandLogger } from '../logger.js';
 
 export const ELEMENT_ID_PATTERN = /^[A-Za-z]+_\d+$/;
 
-export async function append(args: string[], cwd: string): Promise<void> {
+export async function append(args: string[], cwd: string, logger?: CommandLogger): Promise<void> {
   const [type, ...rest] = args;
   if (!type || rest.length === 0) {
     throw new Error('Usage: c8ctl model append <type> <label> [sourceElementId]');
@@ -28,6 +29,6 @@ export async function append(args: string[], cwd: string): Promise<void> {
   await saveFile(state.file, moddle, definitions);
 
   writeState(cwd, { ...state, cursor: newEl.id });
-  console.log(`Appended ${newEl.$type} '${label}' (${newEl.id})`);
-  console.log(`Cursor: ${newEl.id}`);
+  logger?.success(`Appended ${newEl.$type} '${label}' (${newEl.id})`);
+  logger?.info(`Cursor: ${newEl.id}`);
 }

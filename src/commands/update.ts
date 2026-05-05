@@ -1,9 +1,10 @@
 import { loadFile, saveFile, getElementById, updateElementProperty } from '../bpmn.js';
 import { readState } from '../state.js';
+import type { CommandLogger } from '../logger.js';
 
 const ELEMENT_ID_PATTERN = /^[A-Za-z]+_\d+$/;
 
-export async function update(args: string[], cwd: string): Promise<void> {
+export async function update(args: string[], cwd: string, logger?: CommandLogger): Promise<void> {
   let targetId: string | undefined;
   let remaining = args;
 
@@ -33,5 +34,5 @@ export async function update(args: string[], cwd: string): Promise<void> {
   updateElementProperty(moddle, el, prop, values);
   await saveFile(state.file, moddle, definitions);
 
-  console.log(`Updated '${prop}' on ${el.id}`);
+  logger?.success(`Updated '${prop}' on ${el.id}`);
 }

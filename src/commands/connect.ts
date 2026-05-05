@@ -1,7 +1,8 @@
 import { connectElements, loadFile, saveFile } from '../bpmn.js';
 import { readState, writeState } from '../state.js';
+import type { CommandLogger } from '../logger.js';
 
-export async function connect(args: string[], cwd: string): Promise<void> {
+export async function connect(args: string[], cwd: string, logger?: CommandLogger): Promise<void> {
   const [sourceId, targetId, ...conditionParts] = args;
   if (!sourceId || !targetId) {
     throw new Error('Usage: c8ctl model connect <sourceId> <targetId> [conditionExpression]');
@@ -15,6 +16,6 @@ export async function connect(args: string[], cwd: string): Promise<void> {
   await saveFile(state.file, moddle, definitions);
 
   writeState(cwd, { ...state, cursor: targetId });
-  console.log(`Connected ${sourceId} → ${targetId}${conditionExpression ? ` [${conditionExpression}]` : ''}`);
-  console.log(`Cursor: ${targetId}`);
+  logger?.success(`Connected ${sourceId} → ${targetId}${conditionExpression ? ` [${conditionExpression}]` : ''}`);
+  logger?.info(`Cursor: ${targetId}`);
 }

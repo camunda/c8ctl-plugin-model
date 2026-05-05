@@ -1,10 +1,11 @@
 import { deleteState, stateExists } from '../state.js';
+import type { CommandLogger } from '../logger.js';
 
-export async function reset(_args: string[], cwd: string): Promise<void> {
+export async function reset(_args: string[], cwd: string, logger?: CommandLogger): Promise<void> {
   if (!stateExists(cwd)) {
-    console.log('No active model found in current directory.');
+    logger?.warn('No active model found in current directory.');
     return;
   }
   deleteState(cwd);
-  console.log('Model state cleared. The .bpmn file is kept.');
+  logger?.success('Model state cleared. The .bpmn file is kept.');
 }

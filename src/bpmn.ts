@@ -190,6 +190,14 @@ function parseElementType(type: string): { bpmnType: string; defType?: string; e
   if (type === 'event-sub-process') {
     return { bpmnType: 'bpmn:SubProcess', extraProps: { triggeredByEvent: true } };
   }
+  if (type === 'intermediate-catch-event') {
+    throw new Error(
+      `'intermediate-catch-event' is not supported — use a typed variant: ` +
+      `timer-intermediate-catch-event, message-intermediate-catch-event, ` +
+      `signal-intermediate-catch-event, conditional-intermediate-catch-event, ` +
+      `link-intermediate-catch-event`,
+    );
+  }
   for (const { suffix, bpmnType, defs } of TYPED_EVENT_GROUPS) {
     if (type.endsWith(suffix)) {
       const trigger = type.slice(0, -suffix.length);
@@ -415,11 +423,25 @@ const BOUNDARY_EVENT_DEF_TYPES: Record<string, string> = {
 const ALWAYS_INTERRUPTING = new Set(['error', 'cancel']);
 const ALWAYS_NON_INTERRUPTING = new Set(['compensation']);
 
-const VALID_HOST_TYPES = new Set([
+const ACTIVITY_TYPES = new Set([
   'bpmn:Task', 'bpmn:UserTask', 'bpmn:ServiceTask', 'bpmn:ScriptTask',
   'bpmn:SendTask', 'bpmn:ReceiveTask', 'bpmn:ManualTask', 'bpmn:BusinessRuleTask',
   'bpmn:SubProcess', 'bpmn:CallActivity', 'bpmn:AdHocSubProcess',
 ]);
+
+const VALID_HOST_TYPES = ACTIVITY_TYPES;
+
+function assertActivity(el: ModdleElement, prop: string): void {
+  if (!ACTIVITY_TYPES.has(el.$type as string)) {
+    throw new Error(`'${prop}' can only be set on activities`);
+  }
+}
+
+function assertStartEvent(el: ModdleElement, prop: string): void {
+  if (el.$type !== 'bpmn:StartEvent') {
+    throw new Error(`'${prop}' can only be set on start events`);
+  }
+}
 
 function parseBoundaryEventType(eventType: string): { defType: string; cancelActivity: boolean } {
   const isNonInterrupting = eventType.startsWith('non-interrupting-');
@@ -517,18 +539,21 @@ export function updateElementProperty(
   }
 
   if (prop === 'zeebe:taskDefinition.type') {
+    assertActivity(el, prop);
     const td = getOrCreateZeebeChild(moddle, el, 'zeebe:TaskDefinition');
     td.type = values[0];
     return;
   }
 
   if (prop === 'zeebe:taskDefinition.retries') {
+    assertActivity(el, prop);
     const td = getOrCreateZeebeChild(moddle, el, 'zeebe:TaskDefinition');
     td.retries = values[0];
     return;
   }
 
   if (prop === 'zeebe:input') {
+    assertActivity(el, prop);
     const [source, target] = values;
     const ioMapping = getOrCreateZeebeChild(moddle, el, 'zeebe:IoMapping');
     const inputs: ModdleElement[] = ioMapping.inputParameters ?? [];
@@ -543,6 +568,7 @@ export function updateElementProperty(
   }
 
   if (prop === 'zeebe:output') {
+    assertActivity(el, prop);
     const [source, target] = values;
     const ioMapping = getOrCreateZeebeChild(moddle, el, 'zeebe:IoMapping');
     const outputs: ModdleElement[] = ioMapping.outputParameters ?? [];
@@ -557,6 +583,7 @@ export function updateElementProperty(
   }
 
   if (prop === 'zeebe:header') {
+    assertActivity(el, prop);
     const [key, value] = values;
     const headers = getOrCreateZeebeChild(moddle, el, 'zeebe:TaskHeaders');
     const existing = (headers.values ?? []).find((h: ModdleElement) => h.key === key);
@@ -566,6 +593,24 @@ export function updateElementProperty(
       const header = moddle.create('zeebe:Header', { key, value });
       headers.values = [...(headers.values ?? []), header];
     }
+    return;
+  }
+
+  if (prop === 'zeebe:calledDecision.decisionId') {
+    if (el.$type !== 'bpmn:BusinessRuleTask') {
+      throw new Error(`'zeebe:calledDecision.decisionId' can only be set on business-rule-task`);
+    }
+    const cd = getOrCreateZeebeChild(moddle, el, 'zeebe:CalledDecision');
+    cd.decisionId = values[0];
+    return;
+  }
+
+  if (prop === 'zeebe:calledDecision.resultVariable') {
+    if (el.$type !== 'bpmn:BusinessRuleTask') {
+      throw new Error(`'zeebe:calledDecision.resultVariable' can only be set on business-rule-task`);
+    }
+    const cd = getOrCreateZeebeChild(moddle, el, 'zeebe:CalledDecision');
+    cd.resultVariable = values[0];
     return;
   }
 
@@ -583,11 +628,13 @@ export function updateElementProperty(
   }
 
   if (prop === 'isInterrupting') {
+    assertStartEvent(el, prop);
     el.isInterrupting = values[0] !== 'false';
     return;
   }
 
   if (prop === 'multi-instance.type') {
+    assertActivity(el, prop);
     const type = values[0];
     if (type !== 'parallel' && type !== 'sequential') {
       throw new Error(`'multi-instance.type' must be 'parallel' or 'sequential'`);
@@ -602,6 +649,7 @@ export function updateElementProperty(
   }
 
   if (prop.startsWith('zeebe:loopCharacteristics.')) {
+    assertActivity(el, prop);
     const key = prop.slice('zeebe:loopCharacteristics.'.length);
     const validKeys = ['inputCollection', 'inputElement', 'outputCollection', 'outputElement'];
     if (!validKeys.includes(key)) {
@@ -636,6 +684,7 @@ export function updateElementProperty(
 
   throw new Error(
     `Unknown property '${prop}'. Supported: name, zeebe:taskDefinition.type, zeebe:taskDefinition.retries, ` +
+    `zeebe:calledDecision.decisionId, zeebe:calledDecision.resultVariable, ` +
     `zeebe:input, zeebe:output, zeebe:header, zeebe:property, isInterrupting, multi-instance.type, ` +
     `zeebe:loopCharacteristics.inputCollection, zeebe:loopCharacteristics.inputElement, ` +
     `zeebe:loopCharacteristics.outputCollection, zeebe:loopCharacteristics.outputElement, ` +
@@ -662,6 +711,11 @@ function extractZeebe(el: ModdleElement): Record<string, unknown> | undefined {
       result['taskHeaders'] = (v.values ?? []).map((h: ModdleElement) => ({ key: h.key, value: h.value }));
     } else if (type === 'zeebe:Properties') {
       result['properties'] = (v.properties ?? []).map((p: ModdleElement) => ({ name: p.name, value: p.value }));
+    } else if (type === 'zeebe:CalledDecision') {
+      const cd: Record<string, string> = {};
+      if (v.decisionId != null) cd['decisionId'] = v.decisionId;
+      if (v.resultVariable != null) cd['resultVariable'] = v.resultVariable;
+      if (Object.keys(cd).length > 0) result['calledDecision'] = cd;
     } else if (type === 'zeebe:LoopCharacteristics') {
       const lc: Record<string, string> = {};
       if (v.inputCollection != null) lc['inputCollection'] = v.inputCollection;

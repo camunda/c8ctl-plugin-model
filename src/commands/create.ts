@@ -1,7 +1,8 @@
 import { createElement, loadFile, saveFile } from '../bpmn.js';
 import { readState, writeState } from '../state.js';
+import type { CommandLogger } from '../logger.js';
 
-export async function create(args: string[], cwd: string): Promise<void> {
+export async function create(args: string[], cwd: string, logger?: CommandLogger): Promise<void> {
   const [type, ...rest] = args;
   if (!type || rest.length === 0) {
     throw new Error('Usage: c8ctl model create <type> <label>');
@@ -15,6 +16,6 @@ export async function create(args: string[], cwd: string): Promise<void> {
   await saveFile(state.file, moddle, definitions);
 
   writeState(cwd, { ...state, cursor: newEl.id });
-  console.log(`Created ${newEl.$type} '${label}' (${newEl.id})`);
-  console.log(`Cursor: ${newEl.id}`);
+  logger?.success(`Created ${newEl.$type} '${label}' (${newEl.id})`);
+  logger?.info(`Cursor: ${newEl.id}`);
 }

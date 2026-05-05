@@ -1,7 +1,8 @@
 import { loadFile, findContainerOf, getProcess } from '../bpmn.js';
 import { readState, writeState } from '../state.js';
+import type { CommandLogger } from '../logger.js';
 
-export async function selectParent(_args: string[], cwd: string): Promise<void> {
+export async function selectParent(_args: string[], cwd: string, logger?: CommandLogger): Promise<void> {
   const state = readState(cwd);
   const { definitions } = await loadFile(state.file);
 
@@ -13,5 +14,5 @@ export async function selectParent(_args: string[], cwd: string): Promise<void> 
   }
 
   writeState(cwd, { ...state, cursor: container.id });
-  console.log(`Cursor: ${container.id}`);
+  logger?.info(`Cursor: ${container.id}`);
 }

@@ -81,48 +81,80 @@ npm test
 
 ### Element types — `append` / `append-freeze-cursor` / `create` / `create-freeze-cursor`
 
-| Type | ID prefix | Notes |
-| --- | --- | --- |
-| `start-event` | `StartEvent` | — |
-| `timer-start-event` | `StartEvent` | — |
-| `message-start-event` | `StartEvent` | — |
-| `signal-start-event` | `StartEvent` | — |
-| `error-start-event` | `StartEvent` | — |
-| `escalation-start-event` | `StartEvent` | — |
-| `compensation-start-event` | `StartEvent` | — |
-| `conditional-start-event` | `StartEvent` | — |
-| `end-event` | `EndEvent` | — |
-| `message-end-event` | `EndEvent` | — |
-| `signal-end-event` | `EndEvent` | — |
-| `error-end-event` | `EndEvent` | — |
-| `escalation-end-event` | `EndEvent` | — |
-| `terminate-end-event` | `EndEvent` | — |
-| `compensation-end-event` | `EndEvent` | — |
-| `cancel-end-event` | `EndEvent` | — |
-| `task` | `Activity` | — |
-| `user-task` | `Activity` | — |
-| `service-task` | `Activity` | — |
-| `script-task` | `Activity` | — |
-| `exclusive-gateway` | `Gateway` | — |
-| `parallel-gateway` | `Gateway` | — |
-| `inclusive-gateway` | `Gateway` | — |
-| `event-based-gateway` | `Gateway` | — |
-| `call-activity` | `Activity` | — |
-| `sub-process` | `Activity` | — |
-| `ad-hoc-sub-process` | `Activity` | — |
-| `event-sub-process` | `Activity` | `triggeredByEvent=true`; use `create` |
-| `intermediate-catch-event` | `Event` | — |
-| `timer-intermediate-catch-event` | `Event` | — |
-| `message-intermediate-catch-event` | `Event` | — |
-| `signal-intermediate-catch-event` | `Event` | — |
-| `conditional-intermediate-catch-event` | `Event` | — |
-| `link-intermediate-catch-event` | `Event` | — |
-| `intermediate-throw-event` | `Event` | — |
-| `message-intermediate-throw-event` | `Event` | — |
-| `signal-intermediate-throw-event` | `Event` | — |
-| `escalation-intermediate-throw-event` | `Event` | — |
-| `compensation-intermediate-throw-event` | `Event` | — |
-| `link-intermediate-throw-event` | `Event` | — |
+#### Tasks
+
+| Type | ID prefix |
+| --- | --- |
+| `task` | `Activity` |
+| `user-task` | `Activity` |
+| `service-task` | `Activity` |
+| `script-task` | `Activity` |
+| `send-task` | `Activity` |
+| `receive-task` | `Activity` |
+| `manual-task` | `Activity` |
+| `business-rule-task` | `Activity` |
+| `call-activity` | `Activity` |
+| `sub-process` | `Activity` |
+| `ad-hoc-sub-process` | `Activity` |
+| `event-sub-process` | `Activity` |
+
+`event-sub-process` sets `triggeredByEvent=true`; prefer `create` since it has no incoming flow.
+
+#### Gateways
+
+| Type | ID prefix |
+| --- | --- |
+| `exclusive-gateway` | `Gateway` |
+| `parallel-gateway` | `Gateway` |
+| `inclusive-gateway` | `Gateway` |
+| `event-based-gateway` | `Gateway` |
+
+#### Start events
+
+| Type | ID prefix |
+| --- | --- |
+| `start-event` | `StartEvent` |
+| `timer-start-event` | `StartEvent` |
+| `message-start-event` | `StartEvent` |
+| `signal-start-event` | `StartEvent` |
+| `error-start-event` | `StartEvent` |
+| `escalation-start-event` | `StartEvent` |
+| `compensation-start-event` | `StartEvent` |
+| `conditional-start-event` | `StartEvent` |
+
+#### Intermediate catch events
+
+| Type | ID prefix |
+| --- | --- |
+| `timer-intermediate-catch-event` | `Event` |
+| `message-intermediate-catch-event` | `Event` |
+| `signal-intermediate-catch-event` | `Event` |
+| `conditional-intermediate-catch-event` | `Event` |
+| `link-intermediate-catch-event` | `Event` |
+
+#### Intermediate throw events
+
+| Type | ID prefix |
+| --- | --- |
+| `intermediate-throw-event` | `Event` |
+| `message-intermediate-throw-event` | `Event` |
+| `signal-intermediate-throw-event` | `Event` |
+| `escalation-intermediate-throw-event` | `Event` |
+| `compensation-intermediate-throw-event` | `Event` |
+| `link-intermediate-throw-event` | `Event` |
+
+#### End events
+
+| Type | ID prefix |
+| --- | --- |
+| `end-event` | `EndEvent` |
+| `message-end-event` | `EndEvent` |
+| `signal-end-event` | `EndEvent` |
+| `error-end-event` | `EndEvent` |
+| `escalation-end-event` | `EndEvent` |
+| `terminate-end-event` | `EndEvent` |
+| `compensation-end-event` | `EndEvent` |
+| `cancel-end-event` | `EndEvent` |
 
 ### Boundary event types — `boundary-append`
 
@@ -151,6 +183,8 @@ Host element must be an activity (`task`, `user-task`, `service-task`, `script-t
 | `name` | `<name>` | — | — |
 | `zeebe:taskDefinition.type` | `<type>` | — | — |
 | `zeebe:taskDefinition.retries` | `<count>` | — | — |
+| `zeebe:calledDecision.decisionId` | `<decisionId>` | — | Only on `business-rule-task` |
+| `zeebe:calledDecision.resultVariable` | `<variable>` | — | Only on `business-rule-task` |
 | `zeebe:input` | `<source> <target>` | target | — |
 | `zeebe:output` | `<source> <target>` | source | — |
 | `zeebe:header` | `<key> <value>` | key | — |

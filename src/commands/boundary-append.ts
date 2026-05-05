@@ -1,9 +1,10 @@
 import { addBoundaryEvent, loadFile, saveFile } from '../bpmn.js';
 import { readState, writeState } from '../state.js';
+import type { CommandLogger } from '../logger.js';
 
 const ELEMENT_ID_PATTERN = /^[A-Za-z]+_\d+$/;
 
-export async function boundaryAppend(args: string[], cwd: string): Promise<void> {
+export async function boundaryAppend(args: string[], cwd: string, logger?: CommandLogger): Promise<void> {
   const [eventType, ...rest] = args;
   if (!eventType || rest.length === 0) {
     throw new Error(
@@ -31,6 +32,6 @@ export async function boundaryAppend(args: string[], cwd: string): Promise<void>
 
   const interruptingLabel = boundaryEvent.cancelActivity ? 'interrupting' : 'non-interrupting';
   const baseType = eventType.startsWith('non-interrupting-') ? eventType.slice('non-interrupting-'.length) : eventType;
-  console.log(`Appended ${interruptingLabel} ${baseType} boundary event '${label}' (${boundaryEvent.id}) on ${hostId}`);
-  console.log(`Cursor: ${boundaryEvent.id}`);
+  logger?.success(`Appended ${interruptingLabel} ${baseType} boundary event '${label}' (${boundaryEvent.id}) on ${hostId}`);
+  logger?.info(`Cursor: ${boundaryEvent.id}`);
 }
