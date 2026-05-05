@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { append } from '../commands/append.js';
+import { create } from '../commands/create.js';
 import { update } from '../commands/update.js';
 import { tmpDir, cleanup, setupModel, getStatus } from './helpers.js';
 
@@ -241,6 +242,169 @@ test('update zeebe:property updates existing property by name', async () => {
     const matching = props?.filter((p) => p['name'] === 'customProp');
     assert.equal(matching?.length, 1, 'should not duplicate');
     assert.equal(matching?.[0]?.['value'], 'v2');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update multi-instance.type parallel sets parallel loop characteristics', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithTask(cwd);
+    await update(['multi-instance.type', 'parallel'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['id'] === 'Activity_1');
+    const lc = el?.['loopCharacteristics'] as Record<string, unknown>;
+    assert.equal(lc?.['type'], 'multiInstance');
+    assert.equal(lc?.['isSequential'], false);
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update multi-instance.type sequential sets sequential loop characteristics', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithTask(cwd);
+    await update(['multi-instance.type', 'sequential'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['id'] === 'Activity_1');
+    const lc = el?.['loopCharacteristics'] as Record<string, unknown>;
+    assert.equal(lc?.['type'], 'multiInstance');
+    assert.equal(lc?.['isSequential'], true);
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update multi-instance.type can switch between parallel and sequential', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithTask(cwd);
+    await update(['multi-instance.type', 'parallel'], cwd);
+    await update(['multi-instance.type', 'sequential'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['id'] === 'Activity_1');
+    const lc = el?.['loopCharacteristics'] as Record<string, unknown>;
+    assert.equal(lc?.['isSequential'], true);
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update multi-instance.type throws for invalid value', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithTask(cwd);
+    await assert.rejects(() => update(['multi-instance.type', 'loop'], cwd), /parallel.*sequential|sequential.*parallel/);
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update zeebe:loopCharacteristics sets input and output collections', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithTask(cwd);
+    await update(['multi-instance.type', 'parallel'], cwd);
+    await update(['zeebe:loopCharacteristics.inputCollection', '=items'], cwd);
+    await update(['zeebe:loopCharacteristics.inputElement', 'item'], cwd);
+    await update(['zeebe:loopCharacteristics.outputCollection', 'results'], cwd);
+    await update(['zeebe:loopCharacteristics.outputElement', '=result'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['id'] === 'Activity_1');
+    const zeebe = el?.['zeebe'] as Record<string, unknown>;
+    const zlc = zeebe?.['loopCharacteristics'] as Record<string, unknown>;
+    assert.equal(zlc?.['inputCollection'], '=items');
+    assert.equal(zlc?.['inputElement'], 'item');
+    assert.equal(zlc?.['outputCollection'], 'results');
+    assert.equal(zlc?.['outputElement'], '=result');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update ad-hoc.ordering sets ordering on ad-hoc sub-process', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupModel('proc', cwd);
+    await append(['ad-hoc-sub-process', 'My Ad Hoc'], cwd); // Activity_1
+
+    await update(['ad-hoc.ordering', 'Sequential'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['id'] === 'Activity_1');
+    assert.equal(el?.['ordering'], 'Sequential');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update ad-hoc.cancelRemainingInstances sets to false', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupModel('proc', cwd);
+    await append(['ad-hoc-sub-process', 'My Ad Hoc'], cwd);
+
+    await update(['ad-hoc.cancelRemainingInstances', 'false'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['id'] === 'Activity_1');
+    assert.equal(el?.['cancelRemainingInstances'], false);
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update isInterrupting false marks start event as non-interrupting', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupModel('proc', cwd);
+    await create(['error-start-event', 'On Error'], cwd); // StartEvent_2, cursor → StartEvent_2
+
+    await update(['isInterrupting', 'false'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['id'] === 'StartEvent_2');
+    assert.equal(el?.['isInterrupting'], false);
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update ad-hoc.ordering throws on non-ad-hoc element', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithTask(cwd);
+    await assert.rejects(() => update(['ad-hoc.ordering', 'Sequential'], cwd), /ad-hoc sub-process/);
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update ad-hoc.cancelRemainingInstances throws on non-ad-hoc element', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithTask(cwd);
+    await assert.rejects(() => update(['ad-hoc.cancelRemainingInstances', 'false'], cwd), /ad-hoc sub-process/);
   } finally {
     cleanup(cwd);
   }

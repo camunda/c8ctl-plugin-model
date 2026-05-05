@@ -21,8 +21,14 @@ c8ctl model <subcommand> [args]
 | Subcommand | Description |
 | --- | --- |
 | `init <name>` | Create a new process model |
-| `append <type> <label> [sourceId]` | Append an element after cursor; cursor moves to new element |
-| `append-freeze-cursor <type> <label> [sourceId]` | Append an element without moving the cursor |
+| `append <type> <label> [sourceId]` | Append an element after cursor with a sequence flow; cursor moves to new element |
+| `append-freeze-cursor <type> <label> [sourceId]` | Same as `append` but cursor does not move |
+| `create <type> <label>` | Create a standalone element (no sequence flow); cursor moves to new element |
+| `create-freeze-cursor <type> <label>` | Same as `create` but cursor does not move |
+| `connect <sourceId> <targetId> [condition]` | Create a sequence flow between two elements; cursor moves to target |
+| `add-child <type> <label>` | Add a child element inside the cursor sub-process; cursor moves to new element |
+| `add-child-freeze-cursor <type> <label>` | Add a child element inside the cursor sub-process without moving the cursor |
+| `select-parent` | Move the cursor to the parent sub-process of the active element |
 | `boundary-append <type> <label> [hostId]` | Attach a boundary event to an activity; cursor moves to new event |
 | `update [elementId] <property> <value...>` | Update a BPMN or Zeebe property on the cursor element |
 | `select <elementId>` | Move the cursor to a specific element |
@@ -38,11 +44,24 @@ c8ctl model init my-process
 c8ctl model append user-task "Review Application"
 c8ctl model append exclusive-gateway "Approved?"
 c8ctl model append-freeze-cursor end-event Rejected Gateway_1
+c8ctl model create event-sub-process "Handle Error"
+c8ctl model add-child error-start-event "On Error"
+c8ctl model add-child service-task "Compensate"
+c8ctl model select-parent
+c8ctl model create end-event "Alternate End"
+c8ctl model connect Gateway_1 EndEvent_1 "=approved"
+c8ctl model append sub-process "Handle Exception"
+c8ctl model add-child start-event Start
+c8ctl model add-child-freeze-cursor end-event End
+c8ctl model select-parent
 c8ctl model boundary-append timer Timeout
 c8ctl model boundary-append non-interrupting-message Escalation Activity_1
 c8ctl model update zeebe:taskDefinition.type my-job-type
 c8ctl model update Activity_2 name "Send Approval"
 c8ctl model update zeebe:input "=vars.x" localX
+c8ctl model update multi-instance.type parallel
+c8ctl model update zeebe:loopCharacteristics.inputCollection "=items"
+c8ctl model update ad-hoc.ordering Sequential
 c8ctl model select Gateway_1
 c8ctl model select-file other-process
 c8ctl model cursor-status
@@ -60,41 +79,50 @@ npm test
 
 ## Coverage
 
-### Element types — `append` / `append-freeze-cursor`
+### Element types — `append` / `append-freeze-cursor` / `create` / `create-freeze-cursor`
 
-| Type | ID prefix |
-| --- | --- |
-| `start-event` | `StartEvent` |
-| `end-event` | `EndEvent` |
-| `message-end-event` | `EndEvent` |
-| `signal-end-event` | `EndEvent` |
-| `error-end-event` | `EndEvent` |
-| `escalation-end-event` | `EndEvent` |
-| `terminate-end-event` | `EndEvent` |
-| `compensation-end-event` | `EndEvent` |
-| `cancel-end-event` | `EndEvent` |
-| `task` | `Activity` |
-| `user-task` | `Activity` |
-| `service-task` | `Activity` |
-| `script-task` | `Activity` |
-| `exclusive-gateway` | `Gateway` |
-| `parallel-gateway` | `Gateway` |
-| `inclusive-gateway` | `Gateway` |
-| `event-based-gateway` | `Gateway` |
-| `call-activity` | `Activity` |
-| `sub-process` | `Activity` |
-| `intermediate-catch-event` | `Event` |
-| `timer-intermediate-catch-event` | `Event` |
-| `message-intermediate-catch-event` | `Event` |
-| `signal-intermediate-catch-event` | `Event` |
-| `conditional-intermediate-catch-event` | `Event` |
-| `link-intermediate-catch-event` | `Event` |
-| `intermediate-throw-event` | `Event` |
-| `message-intermediate-throw-event` | `Event` |
-| `signal-intermediate-throw-event` | `Event` |
-| `escalation-intermediate-throw-event` | `Event` |
-| `compensation-intermediate-throw-event` | `Event` |
-| `link-intermediate-throw-event` | `Event` |
+| Type | ID prefix | Notes |
+| --- | --- | --- |
+| `start-event` | `StartEvent` | — |
+| `timer-start-event` | `StartEvent` | — |
+| `message-start-event` | `StartEvent` | — |
+| `signal-start-event` | `StartEvent` | — |
+| `error-start-event` | `StartEvent` | — |
+| `escalation-start-event` | `StartEvent` | — |
+| `compensation-start-event` | `StartEvent` | — |
+| `conditional-start-event` | `StartEvent` | — |
+| `end-event` | `EndEvent` | — |
+| `message-end-event` | `EndEvent` | — |
+| `signal-end-event` | `EndEvent` | — |
+| `error-end-event` | `EndEvent` | — |
+| `escalation-end-event` | `EndEvent` | — |
+| `terminate-end-event` | `EndEvent` | — |
+| `compensation-end-event` | `EndEvent` | — |
+| `cancel-end-event` | `EndEvent` | — |
+| `task` | `Activity` | — |
+| `user-task` | `Activity` | — |
+| `service-task` | `Activity` | — |
+| `script-task` | `Activity` | — |
+| `exclusive-gateway` | `Gateway` | — |
+| `parallel-gateway` | `Gateway` | — |
+| `inclusive-gateway` | `Gateway` | — |
+| `event-based-gateway` | `Gateway` | — |
+| `call-activity` | `Activity` | — |
+| `sub-process` | `Activity` | — |
+| `ad-hoc-sub-process` | `Activity` | — |
+| `event-sub-process` | `Activity` | `triggeredByEvent=true`; use `create` |
+| `intermediate-catch-event` | `Event` | — |
+| `timer-intermediate-catch-event` | `Event` | — |
+| `message-intermediate-catch-event` | `Event` | — |
+| `signal-intermediate-catch-event` | `Event` | — |
+| `conditional-intermediate-catch-event` | `Event` | — |
+| `link-intermediate-catch-event` | `Event` | — |
+| `intermediate-throw-event` | `Event` | — |
+| `message-intermediate-throw-event` | `Event` | — |
+| `signal-intermediate-throw-event` | `Event` | — |
+| `escalation-intermediate-throw-event` | `Event` | — |
+| `compensation-intermediate-throw-event` | `Event` | — |
+| `link-intermediate-throw-event` | `Event` | — |
 
 ### Boundary event types — `boundary-append`
 
@@ -118,15 +146,69 @@ Host element must be an activity (`task`, `user-task`, `service-task`, `script-t
 
 ### Update properties — `update`
 
-| Property | Value args | Upsert key |
-| --- | --- | --- |
-| `name` | `<name>` | — |
-| `zeebe:taskDefinition.type` | `<type>` | — |
-| `zeebe:taskDefinition.retries` | `<count>` | — |
-| `zeebe:input` | `<source> <target>` | target |
-| `zeebe:output` | `<source> <target>` | source |
-| `zeebe:header` | `<key> <value>` | key |
-| `zeebe:property` | `<name> <value>` | name |
+| Property | Value args | Upsert key | Notes |
+| --- | --- | --- | --- |
+| `name` | `<name>` | — | — |
+| `zeebe:taskDefinition.type` | `<type>` | — | — |
+| `zeebe:taskDefinition.retries` | `<count>` | — | — |
+| `zeebe:input` | `<source> <target>` | target | — |
+| `zeebe:output` | `<source> <target>` | source | — |
+| `zeebe:header` | `<key> <value>` | key | — |
+| `zeebe:property` | `<name> <value>` | name | — |
+| `isInterrupting` | `true` \| `false` | — | Sets interrupting flag on start events inside event sub-processes; default `true` |
+| `multi-instance.type` | `parallel` \| `sequential` | — | Creates or updates `bpmn:MultiInstanceLoopCharacteristics`; set this before zeebe loop properties |
+| `zeebe:loopCharacteristics.inputCollection` | `<expression>` | — | Requires `multi-instance.type` to be set first |
+| `zeebe:loopCharacteristics.inputElement` | `<variable>` | — | — |
+| `zeebe:loopCharacteristics.outputCollection` | `<variable>` | — | — |
+| `zeebe:loopCharacteristics.outputElement` | `<expression>` | — | — |
+| `ad-hoc.ordering` | `Sequential` \| `Parallel` | — | Only on `ad-hoc-sub-process` elements |
+| `ad-hoc.cancelRemainingInstances` | `true` \| `false` | — | Only on `ad-hoc-sub-process` elements; default `true` |
+
+#### Event sub-process example
+
+```sh
+# Create the event sub-process (no incoming flow)
+c8ctl model create event-sub-process "Handle Error"
+# Add a typed start event inside it
+c8ctl model add-child error-start-event "On Error"
+# Mark it non-interrupting (optional)
+c8ctl model update isInterrupting false
+# Build out the sub-process body
+c8ctl model append service-task "Compensate"
+# Navigate back to the parent level
+c8ctl model select-parent
+```
+
+#### Gateway branching with `connect`
+
+```sh
+c8ctl model append exclusive-gateway "Approved?"
+c8ctl model create end-event Approved
+c8ctl model create end-event Rejected
+c8ctl model connect Gateway_1 EndEvent_1 "=approved"
+c8ctl model connect Gateway_1 EndEvent_2 "=!approved"
+```
+
+#### Multi-instance example
+
+```sh
+c8ctl model append service-task "Process Item"
+c8ctl model update multi-instance.type parallel
+c8ctl model update zeebe:loopCharacteristics.inputCollection "=items"
+c8ctl model update zeebe:loopCharacteristics.inputElement item
+c8ctl model update zeebe:loopCharacteristics.outputCollection results
+c8ctl model update zeebe:loopCharacteristics.outputElement "=result"
+```
+
+#### Ad-hoc sub-process example
+
+```sh
+c8ctl model append ad-hoc-sub-process "Handle Exceptions"
+c8ctl model update ad-hoc.ordering Sequential
+c8ctl model update ad-hoc.cancelRemainingInstances false
+c8ctl model add-child user-task "Investigate"
+c8ctl model add-child user-task "Escalate"
+```
 
 ### Command behavior summary
 
@@ -135,6 +217,12 @@ Host element must be an activity (`task`, `user-task`, `service-task`, `script-t
 | `model init` | — | Creates process + `StartEvent_1`; throws if `.bpmn` or state already exists |
 | `model select` | any element id | Validates existence; throws if not found |
 | `model select-file` | name or path | Auto-appends `.bpmn`; cursor preserved if element exists in new file, reset to first element otherwise |
+| `model select-parent` | — | Moves cursor to direct parent sub-process; throws if cursor is at top level |
+| `model create` | `<type> <label>` | Creates standalone element at process level (no sequence flow); cursor moves |
+| `model create-freeze-cursor` | `<type> <label>` | Same as `create` but cursor does not move |
+| `model connect` | `<sourceId> <targetId> [condition]` | Creates sequence flow; cursor moves to target; optional FEEL condition |
+| `model add-child` | `<type> <label>` | Cursor must be on a `sub-process`; adds element inside it; cursor moves to new element |
+| `model add-child-freeze-cursor` | `<type> <label>` | Same as `add-child` but cursor does not move |
 | `model cursor-status` | — | JSON: `cursor`, `type`, `name`, `file` |
-| `model status` | — | JSON: elements + flows + Zeebe extensions |
+| `model status` | — | JSON: elements + flows + Zeebe extensions; sub-process elements include `children` and `childFlows` |
 | `model reset` | — | Removes state file; keeps `.bpmn` |

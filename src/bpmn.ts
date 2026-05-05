@@ -71,9 +71,49 @@ export function getProcess(definitions: ModdleElement): ModdleElement {
   return process;
 }
 
+function isSubProcessLike(el: ModdleElement): boolean {
+  return el.$type === 'bpmn:SubProcess' || el.$type === 'bpmn:AdHocSubProcess';
+}
+
+function collectAllFlowElements(container: ModdleElement): ModdleElement[] {
+  const result: ModdleElement[] = [];
+  for (const el of container.flowElements ?? []) {
+    result.push(el);
+    if (isSubProcessLike(el)) result.push(...collectAllFlowElements(el));
+  }
+  return result;
+}
+
+function findInContainer(container: ModdleElement, id: string): ModdleElement | undefined {
+  for (const el of container.flowElements ?? []) {
+    if (el.id === id) return el;
+    if (isSubProcessLike(el)) {
+      const found = findInContainer(el, id);
+      if (found) return found;
+    }
+  }
+  return undefined;
+}
+
+function findContainerOfHelper(container: ModdleElement, id: string): ModdleElement | undefined {
+  for (const el of container.flowElements ?? []) {
+    if (el.id === id) return container;
+    if (isSubProcessLike(el)) {
+      const found = findContainerOfHelper(el, id);
+      if (found) return found;
+    }
+  }
+  return undefined;
+}
+
 export function getElementById(definitions: ModdleElement, id: string): ModdleElement | undefined {
   const process = getProcess(definitions);
-  return (process.flowElements ?? []).find((e: ModdleElement) => e.id === id);
+  return findInContainer(process, id);
+}
+
+export function findContainerOf(definitions: ModdleElement, id: string): ModdleElement | undefined {
+  const process = getProcess(definitions);
+  return findContainerOfHelper(process, id);
 }
 
 function normalizeBpmnType(type: string): string {
@@ -118,6 +158,19 @@ const TYPED_EVENT_GROUPS: Array<{ suffix: string; bpmnType: string; defs: Record
       cancel: 'bpmn:CancelEventDefinition',
     },
   },
+  {
+    suffix: '-start-event',
+    bpmnType: 'bpmn:StartEvent',
+    defs: {
+      timer: 'bpmn:TimerEventDefinition',
+      message: 'bpmn:MessageEventDefinition',
+      signal: 'bpmn:SignalEventDefinition',
+      error: 'bpmn:ErrorEventDefinition',
+      escalation: 'bpmn:EscalationEventDefinition',
+      compensation: 'bpmn:CompensateEventDefinition',
+      conditional: 'bpmn:ConditionalEventDefinition',
+    },
+  },
 ];
 
 const DEF_TYPE_TO_TRIGGER: Record<string, string> = {
@@ -133,7 +186,10 @@ const DEF_TYPE_TO_TRIGGER: Record<string, string> = {
   'bpmn:CancelEventDefinition': 'cancel',
 };
 
-function parseElementType(type: string): { bpmnType: string; defType?: string } {
+function parseElementType(type: string): { bpmnType: string; defType?: string; extraProps?: Record<string, unknown> } {
+  if (type === 'event-sub-process') {
+    return { bpmnType: 'bpmn:SubProcess', extraProps: { triggeredByEvent: true } };
+  }
   for (const { suffix, bpmnType, defs } of TYPED_EVENT_GROUPS) {
     if (type.endsWith(suffix)) {
       const trigger = type.slice(0, -suffix.length);
@@ -151,7 +207,7 @@ function parseElementType(type: string): { bpmnType: string; defType?: string } 
 
 function nextId(process: ModdleElement, prefix: string): string {
   let max = 0;
-  for (const el of process.flowElements ?? []) {
+  for (const el of collectAllFlowElements(process)) {
     const m = (el.id as string)?.match(new RegExp(`^${prefix}_(\\d+)$`));
     if (m) max = Math.max(max, parseInt(m[1], 10));
   }
@@ -160,7 +216,7 @@ function nextId(process: ModdleElement, prefix: string): string {
 
 function nextEventDefId(process: ModdleElement): string {
   let max = 0;
-  for (const el of process.flowElements ?? []) {
+  for (const el of collectAllFlowElements(process)) {
     for (const def of (el.eventDefinitions ?? []) as ModdleElement[]) {
       const m = (def.id as string)?.match(/^EventDefinition_(\d+)$/);
       if (m) max = Math.max(max, parseInt(m[1], 10));
@@ -183,12 +239,12 @@ export function addElement(
   name: string,
   sourceId: string,
 ): ModdleElement {
-  const { bpmnType, defType } = parseElementType(type);
+  const { bpmnType, defType, extraProps } = parseElementType(type);
   const process = getProcess(definitions);
 
   const prefix = idPrefix(bpmnType);
   const newId = nextId(process, prefix);
-  const elProps: Record<string, unknown> = { id: newId, name };
+  const elProps: Record<string, unknown> = { id: newId, name, ...extraProps };
   if (defType) {
     elProps.eventDefinitions = [moddle.create(defType, { id: nextEventDefId(process) })];
   }
@@ -196,6 +252,8 @@ export function addElement(
 
   const source = getElementById(definitions, sourceId);
   if (!source) throw new Error(`Source element '${sourceId}' not found`);
+
+  const container = findContainerOfHelper(process, sourceId) ?? process;
 
   const flowId = nextId(process, 'Flow');
   const flow = moddle.create('bpmn:SequenceFlow', {
@@ -208,7 +266,7 @@ export function addElement(
   newEl.incoming = [flow];
   newEl.outgoing = [];
 
-  process.flowElements = [...(process.flowElements ?? []), newEl, flow];
+  container.flowElements = [...(container.flowElements ?? []), newEl, flow];
 
   // Add DI for new element
   const diagram = definitions.diagrams?.[0];
@@ -228,6 +286,119 @@ export function addElement(
   }
 
   return newEl;
+}
+
+export function addChildElement(
+  moddle: BpmnModdle,
+  definitions: ModdleElement,
+  parentId: string,
+  type: string,
+  name: string,
+): ModdleElement {
+  const process = getProcess(definitions);
+  const parent = getElementById(definitions, parentId);
+  if (!parent) throw new Error(`Parent element '${parentId}' not found`);
+
+  const { bpmnType, defType, extraProps } = parseElementType(type);
+  const prefix = idPrefix(bpmnType);
+  const newId = nextId(process, prefix);
+  const elProps: Record<string, unknown> = { id: newId, name, incoming: [], outgoing: [], ...extraProps };
+  if (defType) {
+    elProps.eventDefinitions = [moddle.create(defType, { id: nextEventDefId(process) })];
+  }
+  const newEl = moddle.create(bpmnType, elProps);
+
+  parent.flowElements = [...(parent.flowElements ?? []), newEl];
+
+  const diagram = definitions.diagrams?.[0];
+  const plane = diagram?.plane;
+  if (plane) {
+    const shape = moddle.create('bpmndi:BPMNShape', {
+      id: `${newId}_di`,
+      bpmnElement: newEl,
+      bounds: moddle.create('dc:Bounds', { x: 0, y: 0, width: 100, height: 80 }),
+    });
+    plane.planeElement = [...(plane.planeElement ?? []), shape];
+  }
+
+  return newEl;
+}
+
+export function createElement(
+  moddle: BpmnModdle,
+  definitions: ModdleElement,
+  type: string,
+  name: string,
+): ModdleElement {
+  const process = getProcess(definitions);
+  const { bpmnType, defType, extraProps } = parseElementType(type);
+  const prefix = idPrefix(bpmnType);
+  const newId = nextId(process, prefix);
+  const elProps: Record<string, unknown> = { id: newId, name, incoming: [], outgoing: [], ...extraProps };
+  if (defType) {
+    elProps.eventDefinitions = [moddle.create(defType, { id: nextEventDefId(process) })];
+  }
+  const newEl = moddle.create(bpmnType, elProps);
+
+  process.flowElements = [...(process.flowElements ?? []), newEl];
+
+  const diagram = definitions.diagrams?.[0];
+  const plane = diagram?.plane;
+  if (plane) {
+    const shape = moddle.create('bpmndi:BPMNShape', {
+      id: `${newId}_di`,
+      bpmnElement: newEl,
+      bounds: moddle.create('dc:Bounds', { x: 0, y: 0, width: 100, height: 80 }),
+    });
+    plane.planeElement = [...(plane.planeElement ?? []), shape];
+  }
+
+  return newEl;
+}
+
+export function connectElements(
+  moddle: BpmnModdle,
+  definitions: ModdleElement,
+  sourceId: string,
+  targetId: string,
+  conditionExpression?: string,
+): ModdleElement {
+  const process = getProcess(definitions);
+  const source = getElementById(definitions, sourceId);
+  if (!source) throw new Error(`Source element '${sourceId}' not found`);
+  const target = getElementById(definitions, targetId);
+  if (!target) throw new Error(`Target element '${targetId}' not found`);
+
+  const sourceContainer = findContainerOfHelper(process, sourceId) ?? process;
+  const targetContainer = findContainerOfHelper(process, targetId) ?? process;
+  if (sourceContainer !== targetContainer) {
+    throw new Error(`'${sourceId}' and '${targetId}' are in different scopes and cannot be connected`);
+  }
+
+  const flowId = nextId(process, 'Flow');
+  const flowProps: Record<string, unknown> = { id: flowId, sourceRef: source, targetRef: target };
+  if (conditionExpression) {
+    flowProps.conditionExpression = moddle.create('bpmn:FormalExpression', { body: conditionExpression });
+  }
+  const flow = moddle.create('bpmn:SequenceFlow', flowProps);
+
+  source.outgoing = [...(source.outgoing ?? []), flow];
+  target.incoming = [...(target.incoming ?? []), flow];
+
+  sourceContainer.flowElements = [...(sourceContainer.flowElements ?? []), flow];
+
+  const diagram = definitions.diagrams?.[0];
+  const plane = diagram?.plane;
+  if (plane) {
+    const edge = moddle.create('bpmndi:BPMNEdge', {
+      id: `${flowId}_di`,
+      bpmnElement: flow,
+      waypoint: [],
+    });
+    plane.planeElement = [...(plane.planeElement ?? []), edge];
+  }
+
+  return flow;
 }
 
 const BOUNDARY_EVENT_DEF_TYPES: Record<string, string> = {
@@ -411,7 +582,65 @@ export function updateElementProperty(
     return;
   }
 
-  throw new Error(`Unknown property '${prop}'. Supported: name, zeebe:taskDefinition.type, zeebe:taskDefinition.retries, zeebe:input, zeebe:output, zeebe:header, zeebe:property`);
+  if (prop === 'isInterrupting') {
+    el.isInterrupting = values[0] !== 'false';
+    return;
+  }
+
+  if (prop === 'multi-instance.type') {
+    const type = values[0];
+    if (type !== 'parallel' && type !== 'sequential') {
+      throw new Error(`'multi-instance.type' must be 'parallel' or 'sequential'`);
+    }
+    const isSequential = type === 'sequential';
+    if (!el.loopCharacteristics || el.loopCharacteristics.$type !== 'bpmn:MultiInstanceLoopCharacteristics') {
+      el.loopCharacteristics = moddle.create('bpmn:MultiInstanceLoopCharacteristics', { isSequential });
+    } else {
+      el.loopCharacteristics.isSequential = isSequential;
+    }
+    return;
+  }
+
+  if (prop.startsWith('zeebe:loopCharacteristics.')) {
+    const key = prop.slice('zeebe:loopCharacteristics.'.length);
+    const validKeys = ['inputCollection', 'inputElement', 'outputCollection', 'outputElement'];
+    if (!validKeys.includes(key)) {
+      throw new Error(
+        `Unknown zeebe:loopCharacteristics property '${key}'. Supported: ${validKeys.join(', ')}`,
+      );
+    }
+    const loopChar = getOrCreateZeebeChild(moddle, el, 'zeebe:LoopCharacteristics');
+    loopChar[key] = values[0];
+    return;
+  }
+
+  if (prop === 'ad-hoc.ordering') {
+    const ordering = values[0];
+    if (ordering !== 'Sequential' && ordering !== 'Parallel') {
+      throw new Error(`'ad-hoc.ordering' must be 'Sequential' or 'Parallel'`);
+    }
+    if (el.$type !== 'bpmn:AdHocSubProcess') {
+      throw new Error(`'ad-hoc.ordering' can only be set on ad-hoc sub-processes`);
+    }
+    el.ordering = ordering;
+    return;
+  }
+
+  if (prop === 'ad-hoc.cancelRemainingInstances') {
+    if (el.$type !== 'bpmn:AdHocSubProcess') {
+      throw new Error(`'ad-hoc.cancelRemainingInstances' can only be set on ad-hoc sub-processes`);
+    }
+    el.cancelRemainingInstances = values[0] !== 'false';
+    return;
+  }
+
+  throw new Error(
+    `Unknown property '${prop}'. Supported: name, zeebe:taskDefinition.type, zeebe:taskDefinition.retries, ` +
+    `zeebe:input, zeebe:output, zeebe:header, zeebe:property, isInterrupting, multi-instance.type, ` +
+    `zeebe:loopCharacteristics.inputCollection, zeebe:loopCharacteristics.inputElement, ` +
+    `zeebe:loopCharacteristics.outputCollection, zeebe:loopCharacteristics.outputElement, ` +
+    `ad-hoc.ordering, ad-hoc.cancelRemainingInstances`,
+  );
 }
 
 function extractZeebe(el: ModdleElement): Record<string, unknown> | undefined {
@@ -433,44 +662,71 @@ function extractZeebe(el: ModdleElement): Record<string, unknown> | undefined {
       result['taskHeaders'] = (v.values ?? []).map((h: ModdleElement) => ({ key: h.key, value: h.value }));
     } else if (type === 'zeebe:Properties') {
       result['properties'] = (v.properties ?? []).map((p: ModdleElement) => ({ name: p.name, value: p.value }));
+    } else if (type === 'zeebe:LoopCharacteristics') {
+      const lc: Record<string, string> = {};
+      if (v.inputCollection != null) lc['inputCollection'] = v.inputCollection;
+      if (v.inputElement != null) lc['inputElement'] = v.inputElement;
+      if (v.outputCollection != null) lc['outputCollection'] = v.outputCollection;
+      if (v.outputElement != null) lc['outputElement'] = v.outputElement;
+      if (Object.keys(lc).length > 0) result['loopCharacteristics'] = lc;
     }
   }
 
   return Object.keys(result).length > 0 ? result : undefined;
 }
 
-export function toStatusJson(definitions: ModdleElement, cursor: string): Record<string, unknown> {
-  const process = getProcess(definitions);
-  const flowElements: ModdleElement[] = process.flowElements ?? [];
+function toElementJson(e: ModdleElement): Record<string, unknown> {
+  const local = (e.$type as string).replace('bpmn:', '');
+  const type = local.charAt(0).toLowerCase() + local.slice(1);
+  const defs: ModdleElement[] = e.eventDefinitions ?? [];
+  const eventDefinition = defs.length > 0 ? (DEF_TYPE_TO_TRIGGER[defs[0].$type as string] ?? defs[0].$type) : undefined;
+  const entry: Record<string, unknown> = {
+    id: e.id,
+    type,
+    name: e.name,
+    ...(eventDefinition ? { eventDefinition } : {}),
+    ...(e.attachedToRef
+      ? {
+          attachedToRef: e.attachedToRef?.id ?? e.attachedToRef,
+          cancelActivity: e.cancelActivity,
+          outgoing: (e.outgoing ?? []).map((f: ModdleElement) => f.id),
+        }
+      : {
+          incoming: (e.incoming ?? []).map((f: ModdleElement) => f.id),
+          outgoing: (e.outgoing ?? []).map((f: ModdleElement) => f.id),
+        }),
+  };
+  const zeebe = extractZeebe(e);
+  if (zeebe) entry['zeebe'] = zeebe;
+  if (e.loopCharacteristics?.$type === 'bpmn:MultiInstanceLoopCharacteristics') {
+    entry['loopCharacteristics'] = {
+      type: 'multiInstance',
+      isSequential: e.loopCharacteristics.isSequential ?? false,
+    };
+  }
+  if (e.$type === 'bpmn:SubProcess' && e.triggeredByEvent) {
+    entry['triggeredByEvent'] = true;
+  }
+  if (e.$type === 'bpmn:StartEvent' && e.isInterrupting === false) {
+    entry['isInterrupting'] = false;
+  }
+  if (e.$type === 'bpmn:AdHocSubProcess') {
+    entry['ordering'] = e.ordering ?? 'Parallel';
+    entry['cancelRemainingInstances'] = e.cancelRemainingInstances ?? true;
+  }
+  if (isSubProcessLike(e)) {
+    const { elements: children, flows: childFlows } = toContainerJson(e);
+    entry['children'] = children;
+    entry['childFlows'] = childFlows;
+  }
+  return entry;
+}
 
+function toContainerJson(container: ModdleElement): { elements: Record<string, unknown>[]; flows: Record<string, unknown>[] } {
+  const flowElements: ModdleElement[] = container.flowElements ?? [];
   const elements = flowElements
     .filter((e: ModdleElement) => e.$type !== 'bpmn:SequenceFlow')
-    .map((e: ModdleElement) => {
-      const local = (e.$type as string).replace('bpmn:', '');
-      const type = local.charAt(0).toLowerCase() + local.slice(1);
-      const defs: ModdleElement[] = e.eventDefinitions ?? [];
-      const eventDefinition = defs.length > 0 ? (DEF_TYPE_TO_TRIGGER[defs[0].$type as string] ?? defs[0].$type) : undefined;
-      const entry: Record<string, unknown> = {
-        id: e.id,
-        type,
-        name: e.name,
-        ...(eventDefinition ? { eventDefinition } : {}),
-        ...(e.attachedToRef
-          ? {
-              attachedToRef: e.attachedToRef?.id ?? e.attachedToRef,
-              cancelActivity: e.cancelActivity,
-              outgoing: (e.outgoing ?? []).map((f: ModdleElement) => f.id),
-            }
-          : {
-              incoming: (e.incoming ?? []).map((f: ModdleElement) => f.id),
-              outgoing: (e.outgoing ?? []).map((f: ModdleElement) => f.id),
-            }),
-      };
-      const zeebe = extractZeebe(e);
-      if (zeebe) entry['zeebe'] = zeebe;
-      return entry;
-    });
-
+    .map(toElementJson);
   const flows = flowElements
     .filter((e: ModdleElement) => e.$type === 'bpmn:SequenceFlow')
     .map((e: ModdleElement) => ({
@@ -479,7 +735,12 @@ export function toStatusJson(definitions: ModdleElement, cursor: string): Record
       target: e.targetRef?.id ?? e.targetRef,
       ...(e.conditionExpression ? { condition: e.conditionExpression.body } : {}),
     }));
+  return { elements, flows };
+}
 
+export function toStatusJson(definitions: ModdleElement, cursor: string): Record<string, unknown> {
+  const process = getProcess(definitions);
+  const { elements, flows } = toContainerJson(process);
   return {
     cursor,
     process: {
