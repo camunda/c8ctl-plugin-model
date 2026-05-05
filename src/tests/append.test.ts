@@ -5,19 +5,19 @@ import { readState } from '../state.js';
 import { tmpDir, cleanup, setupModel, getStatus } from './helpers.js';
 
 const ELEMENT_TYPES: Array<[string, string]> = [
-  ['startEvent', 'startEvent'],
-  ['endEvent', 'endEvent'],
+  ['start-event', 'startEvent'],
+  ['end-event', 'endEvent'],
   ['task', 'task'],
-  ['userTask', 'userTask'],
-  ['serviceTask', 'serviceTask'],
-  ['scriptTask', 'scriptTask'],
-  ['exclusiveGateway', 'exclusiveGateway'],
-  ['parallelGateway', 'parallelGateway'],
-  ['inclusiveGateway', 'inclusiveGateway'],
-  ['callActivity', 'callActivity'],
-  ['subProcess', 'subProcess'],
-  ['intermediateCatchEvent', 'intermediateCatchEvent'],
-  ['intermediateThrowEvent', 'intermediateThrowEvent'],
+  ['user-task', 'userTask'],
+  ['service-task', 'serviceTask'],
+  ['script-task', 'scriptTask'],
+  ['exclusive-gateway', 'exclusiveGateway'],
+  ['parallel-gateway', 'parallelGateway'],
+  ['inclusive-gateway', 'inclusiveGateway'],
+  ['call-activity', 'callActivity'],
+  ['sub-process', 'subProcess'],
+  ['intermediate-catch-event', 'intermediateCatchEvent'],
+  ['intermediate-throw-event', 'intermediateThrowEvent'],
 ];
 
 for (const [type, expectedType] of ELEMENT_TYPES) {
@@ -48,7 +48,7 @@ test('append moves cursor to new element', async () => {
   const cwd = tmpDir();
   try {
     await setupModel('proc', cwd);
-    await append(['userTask', 'Review'], cwd);
+    await append(['user-task', 'Review'], cwd);
     const state = readState(cwd);
     assert.equal(state.cursor, 'Activity_1');
   } finally {
@@ -60,8 +60,8 @@ test('append chains: each append uses current cursor as source', async () => {
   const cwd = tmpDir();
   try {
     await setupModel('proc', cwd);
-    await append(['userTask', 'Step 1'], cwd);
-    await append(['serviceTask', 'Step 2'], cwd);
+    await append(['user-task', 'Step 1'], cwd);
+    await append(['service-task', 'Step 2'], cwd);
 
     const status = await getStatus(cwd);
     const proc = status['process'] as Record<string, unknown>;
@@ -78,8 +78,8 @@ test('append with explicit sourceId uses that element as source', async () => {
   const cwd = tmpDir();
   try {
     await setupModel('proc', cwd);
-    await append(['userTask', 'Branch A'], cwd); // Activity_1, cursor → Activity_1
-    await append(['endEvent', 'End A', 'StartEvent_1'], cwd); // from StartEvent_1, cursor → EndEvent_1
+    await append(['user-task', 'Branch A'], cwd); // Activity_1, cursor → Activity_1
+    await append(['end-event', 'End A', 'StartEvent_1'], cwd); // from StartEvent_1, cursor → EndEvent_1
 
     const status = await getStatus(cwd);
     const proc = status['process'] as Record<string, unknown>;
@@ -100,7 +100,7 @@ test('append supports multi-word labels', async () => {
   const cwd = tmpDir();
   try {
     await setupModel('proc', cwd);
-    await append(['userTask', 'Review And Approve'], cwd);
+    await append(['user-task', 'Review And Approve'], cwd);
 
     const status = await getStatus(cwd);
     const proc = status['process'] as Record<string, unknown>;
@@ -117,7 +117,7 @@ test('append throws when source element not found', async () => {
   try {
     await setupModel('proc', cwd);
     await assert.rejects(
-      () => append(['userTask', 'Task', 'Activity_99'], cwd),
+      () => append(['user-task', 'Task', 'Activity_99'], cwd),
       /not found/,
     );
   } finally {
@@ -129,7 +129,7 @@ test('append throws without required arguments', async () => {
   const cwd = tmpDir();
   try {
     await setupModel('proc', cwd);
-    await assert.rejects(() => append(['userTask'], cwd), /Usage/);
+    await assert.rejects(() => append(['user-task'], cwd), /Usage/);
     await assert.rejects(() => append([], cwd), /Usage/);
   } finally {
     cleanup(cwd);

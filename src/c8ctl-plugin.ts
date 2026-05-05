@@ -32,9 +32,9 @@ export const metadata = {
       ],
       examples: [
         { command: 'c8ctl model init my-process', description: 'Create my-process.bpmn with a start event' },
-        { command: 'c8ctl model append userTask "Review Application"', description: 'Append user task after cursor; cursor moves' },
-        { command: 'c8ctl model append exclusiveGateway "Approved?"', description: 'Append gateway after cursor' },
-        { command: 'c8ctl model append-freeze-cursor endEvent Rejected Gateway_1', description: 'Append end event from Gateway_1; cursor stays' },
+        { command: 'c8ctl model append user-task "Review Application"', description: 'Append user task after cursor; cursor moves' },
+        { command: 'c8ctl model append exclusive-gateway "Approved?"', description: 'Append gateway after cursor' },
+        { command: 'c8ctl model append-freeze-cursor end-event Rejected Gateway_1', description: 'Append end event from Gateway_1; cursor stays' },
         { command: 'c8ctl model boundary-append timer Timeout', description: 'Add interrupting timer boundary to cursor element' },
         { command: 'c8ctl model boundary-append non-interrupting-message Escalation Activity_1', description: 'Add non-interrupting message boundary to Activity_1' },
         { command: 'c8ctl model update zeebe:taskDefinition.type my-job-type', description: 'Set Zeebe job type on cursor element' },
@@ -122,9 +122,9 @@ Boundary event types:
   Prefix with non-interrupting- for non-interrupting variants (where applicable)
 
 Element types (append):
-  startEvent, endEvent, task, userTask, serviceTask, scriptTask,
-  exclusiveGateway, parallelGateway, inclusiveGateway, callActivity,
-  subProcess, intermediateCatchEvent, intermediateThrowEvent
+  start-event, end-event, task, user-task, service-task, script-task,
+  exclusive-gateway, parallel-gateway, inclusive-gateway, call-activity,
+  sub-process, intermediate-catch-event, intermediate-throw-event
 
 Update properties:
   name                                Element name

@@ -63,7 +63,7 @@ test('select-file resets cursor to first element when cursor not in new file', a
   const cwd = tmpDir();
   try {
     await setupModel('proc-a', cwd);
-    await append(['userTask', 'Review'], cwd); // Activity_1 in proc-a, cursor → Activity_1
+    await append(['user-task', 'Review'], cwd); // Activity_1 in proc-a, cursor → Activity_1
 
     const { reset } = await import('../commands/reset.js');
     await reset([], cwd);

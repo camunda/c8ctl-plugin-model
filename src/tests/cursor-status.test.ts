@@ -34,7 +34,7 @@ test('cursor-status reflects cursor after append', async () => {
   const cwd = tmpDir();
   try {
     await setupModel('proc', cwd);
-    await append(['userTask', 'Review'], cwd);
+    await append(['user-task', 'Review'], cwd);
     const cs = await getCursorStatus(cwd);
     assert.equal(cs['cursor'], 'Activity_1');
     assert.equal(cs['type'], 'UserTask');

@@ -7,7 +7,7 @@ import { tmpDir, cleanup, setupModel, getStatus } from './helpers.js';
 
 async function setupWithTask(cwd: string): Promise<void> {
   await setupModel('proc', cwd);
-  await append(['userTask', 'Review'], cwd); // Activity_1, cursor → Activity_1
+  await append(['user-task', 'Review'], cwd); // Activity_1, cursor → Activity_1
 }
 
 const INTERRUPTING_TYPES = ['timer', 'error', 'message', 'signal', 'escalation', 'cancel', 'conditional'];
@@ -92,7 +92,7 @@ test('boundary-append with explicit hostId attaches to specified element', async
   const cwd = tmpDir();
   try {
     await setupWithTask(cwd); // Activity_1, cursor → Activity_1
-    await append(['serviceTask', 'Execute'], cwd); // Activity_2, cursor → Activity_2
+    await append(['service-task', 'Execute'], cwd); // Activity_2, cursor → Activity_2
     await boundaryAppend(['timer', 'Timeout', 'Activity_1'], cwd); // attach to Activity_1
 
     const status = await getStatus(cwd);
@@ -209,7 +209,7 @@ test('boundary-append appended flow from boundary event works', async () => {
   try {
     await setupWithTask(cwd);
     await boundaryAppend(['timer', 'Timeout'], cwd); // BoundaryEvent_1, cursor → BoundaryEvent_1
-    await append(['endEvent', 'Timed Out'], cwd); // from BoundaryEvent_1
+    await append(['end-event', 'Timed Out'], cwd); // from BoundaryEvent_1
 
     const status = await getStatus(cwd);
     const proc = status['process'] as Record<string, unknown>;

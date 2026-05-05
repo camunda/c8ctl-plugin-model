@@ -6,7 +6,7 @@ import { tmpDir, cleanup, setupModel, getStatus } from './helpers.js';
 
 async function setupWithTask(cwd: string): Promise<void> {
   await setupModel('proc', cwd);
-  await append(['userTask', 'Review'], cwd); // Activity_1
+  await append(['user-task', 'Review'], cwd); // Activity_1
 }
 
 test('update name on cursor element', async () => {
@@ -29,7 +29,7 @@ test('update name with explicit elementId', async () => {
   const cwd = tmpDir();
   try {
     await setupWithTask(cwd);
-    await append(['serviceTask', 'Execute'], cwd); // Activity_2, cursor → Activity_2
+    await append(['service-task', 'Execute'], cwd); // Activity_2, cursor → Activity_2
     await update(['Activity_1', 'name', 'Renamed'], cwd); // target Activity_1 explicitly
 
     const status = await getStatus(cwd);

@@ -6,20 +6,20 @@ The plugin exposes a `model` command with subcommands for creating, navigating, 
 
 ## Installation
 
-```
+```sh
 c8ctl load plugin --from file://${PWD}
 ```
 
 ## Usage
 
-```
+```sh
 c8ctl model <subcommand> [args]
 ```
 
 ### Subcommands
 
 | Subcommand | Description |
-|---|---|
+| --- | --- |
 | `init <name>` | Create a new process model |
 | `append <type> <label> [sourceId]` | Append an element after cursor; cursor moves to new element |
 | `append-freeze-cursor <type> <label> [sourceId]` | Append an element without moving the cursor |
@@ -35,9 +35,9 @@ c8ctl model <subcommand> [args]
 
 ```sh
 c8ctl model init my-process
-c8ctl model append userTask "Review Application"
-c8ctl model append exclusiveGateway "Approved?"
-c8ctl model append-freeze-cursor endEvent Rejected Gateway_1
+c8ctl model append user-task "Review Application"
+c8ctl model append exclusive-gateway "Approved?"
+c8ctl model append-freeze-cursor end-event Rejected Gateway_1
 c8ctl model boundary-append timer Timeout
 c8ctl model boundary-append non-interrupting-message Escalation Activity_1
 c8ctl model update zeebe:taskDefinition.type my-job-type
@@ -63,25 +63,25 @@ npm test
 ### Element types — `append` / `append-freeze-cursor`
 
 | Type | ID prefix |
-|---|---|
-| `startEvent` | `StartEvent` |
-| `endEvent` | `EndEvent` |
+| --- | --- |
+| `start-event` | `StartEvent` |
+| `end-event` | `EndEvent` |
 | `task` | `Activity` |
-| `userTask` | `Activity` |
-| `serviceTask` | `Activity` |
-| `scriptTask` | `Activity` |
-| `exclusiveGateway` | `Gateway` |
-| `parallelGateway` | `Gateway` |
-| `inclusiveGateway` | `Gateway` |
-| `callActivity` | `Activity` |
-| `subProcess` | `Activity` |
-| `intermediateCatchEvent` | `Event` |
-| `intermediateThrowEvent` | `Event` |
+| `user-task` | `Activity` |
+| `service-task` | `Activity` |
+| `script-task` | `Activity` |
+| `exclusive-gateway` | `Gateway` |
+| `parallel-gateway` | `Gateway` |
+| `inclusive-gateway` | `Gateway` |
+| `call-activity` | `Activity` |
+| `sub-process` | `Activity` |
+| `intermediate-catch-event` | `Event` |
+| `intermediate-throw-event` | `Event` |
 
 ### Boundary event types — `boundary-append`
 
 | Type | Interrupting |
-|---|---|
+| --- | --- |
 | `timer` | yes (default) |
 | `non-interrupting-timer` | no |
 | `error` | always |
@@ -96,12 +96,12 @@ npm test
 | `non-interrupting-conditional` | no |
 | `cancel` | always |
 
-Host element must be an activity (`task`, `userTask`, `serviceTask`, `scriptTask`, `callActivity`, `subProcess`, etc.). Gateways and events are rejected.
+Host element must be an activity (`task`, `user-task`, `service-task`, `script-task`, `call-activity`, `sub-process`, etc.). Gateways and events are rejected.
 
 ### Update properties — `update`
 
 | Property | Value args | Upsert key |
-|---|---|---|
+| --- | --- | --- |
 | `name` | `<name>` | — |
 | `zeebe:taskDefinition.type` | `<type>` | — |
 | `zeebe:taskDefinition.retries` | `<count>` | — |
@@ -110,10 +110,10 @@ Host element must be an activity (`task`, `userTask`, `serviceTask`, `scriptTask
 | `zeebe:header` | `<key> <value>` | key |
 | `zeebe:property` | `<name> <value>` | name |
 
-### Command behaviour summary
+### Command behavior summary
 
 | Command | Supported inputs | Notes |
-|---|---|---|
+| --- | --- | --- |
 | `model init` | — | Creates process + `StartEvent_1`; throws if `.bpmn` or state already exists |
 | `model select` | any element id | Validates existence; throws if not found |
 | `model select-file` | name or path | Auto-appends `.bpmn`; cursor preserved if element exists in new file, reset to first element otherwise |

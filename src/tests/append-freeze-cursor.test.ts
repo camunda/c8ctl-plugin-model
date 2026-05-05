@@ -6,19 +6,19 @@ import { readState } from '../state.js';
 import { tmpDir, cleanup, setupModel, getStatus } from './helpers.js';
 
 const ELEMENT_TYPES: Array<[string, string]> = [
-  ['startEvent', 'startEvent'],
-  ['endEvent', 'endEvent'],
+  ['start-event', 'startEvent'],
+  ['end-event', 'endEvent'],
   ['task', 'task'],
-  ['userTask', 'userTask'],
-  ['serviceTask', 'serviceTask'],
-  ['scriptTask', 'scriptTask'],
-  ['exclusiveGateway', 'exclusiveGateway'],
-  ['parallelGateway', 'parallelGateway'],
-  ['inclusiveGateway', 'inclusiveGateway'],
-  ['callActivity', 'callActivity'],
-  ['subProcess', 'subProcess'],
-  ['intermediateCatchEvent', 'intermediateCatchEvent'],
-  ['intermediateThrowEvent', 'intermediateThrowEvent'],
+  ['user-task', 'userTask'],
+  ['service-task', 'serviceTask'],
+  ['script-task', 'scriptTask'],
+  ['exclusive-gateway', 'exclusiveGateway'],
+  ['parallel-gateway', 'parallelGateway'],
+  ['inclusive-gateway', 'inclusiveGateway'],
+  ['call-activity', 'callActivity'],
+  ['sub-process', 'subProcess'],
+  ['intermediate-catch-event', 'intermediateCatchEvent'],
+  ['intermediate-throw-event', 'intermediateThrowEvent'],
 ];
 
 for (const [type, expectedType] of ELEMENT_TYPES) {
@@ -47,7 +47,7 @@ test('append-freeze-cursor creates sequence flow from source', async () => {
   const cwd = tmpDir();
   try {
     await setupModel('proc', cwd);
-    await appendFreezeCursor(['endEvent', 'End'], cwd);
+    await appendFreezeCursor(['end-event', 'End'], cwd);
 
     const status = await getStatus(cwd);
     const proc = status['process'] as Record<string, unknown>;
@@ -63,8 +63,8 @@ test('append-freeze-cursor with explicit sourceId uses that element', async () =
   const cwd = tmpDir();
   try {
     await setupModel('proc', cwd);
-    await append(['exclusiveGateway', 'Decision'], cwd); // cursor → Gateway_1
-    await appendFreezeCursor(['endEvent', 'Rejected', 'StartEvent_1'], cwd); // from StartEvent_1, cursor stays at Gateway_1
+    await append(['exclusive-gateway', 'Decision'], cwd); // cursor → Gateway_1
+    await appendFreezeCursor(['end-event', 'Rejected', 'StartEvent_1'], cwd); // from StartEvent_1, cursor stays at Gateway_1
 
     const state = readState(cwd);
     assert.equal(state.cursor, 'Gateway_1');
@@ -84,7 +84,7 @@ test('append-freeze-cursor throws when source not found', async () => {
   try {
     await setupModel('proc', cwd);
     await assert.rejects(
-      () => appendFreezeCursor(['userTask', 'Task', 'Activity_99'], cwd),
+      () => appendFreezeCursor(['user-task', 'Task', 'Activity_99'], cwd),
       /not found/,
     );
   } finally {
@@ -96,7 +96,7 @@ test('append-freeze-cursor throws without required arguments', async () => {
   const cwd = tmpDir();
   try {
     await setupModel('proc', cwd);
-    await assert.rejects(() => appendFreezeCursor(['userTask'], cwd), /Usage/);
+    await assert.rejects(() => appendFreezeCursor(['user-task'], cwd), /Usage/);
     await assert.rejects(() => appendFreezeCursor([], cwd), /Usage/);
   } finally {
     cleanup(cwd);

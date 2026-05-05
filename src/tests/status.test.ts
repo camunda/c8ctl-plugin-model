@@ -33,8 +33,8 @@ test('status lists all elements excluding sequence flows', async () => {
   const cwd = tmpDir();
   try {
     await setupModel('proc', cwd);
-    await append(['userTask', 'Review'], cwd);
-    await append(['endEvent', 'Done'], cwd);
+    await append(['user-task', 'Review'], cwd);
+    await append(['end-event', 'Done'], cwd);
 
     const status = await getStatus(cwd);
     const proc = status['process'] as Record<string, unknown>;
@@ -52,7 +52,7 @@ test('status lists sequence flows with source and target', async () => {
   const cwd = tmpDir();
   try {
     await setupModel('proc', cwd);
-    await append(['endEvent', 'Done'], cwd);
+    await append(['end-event', 'Done'], cwd);
 
     const status = await getStatus(cwd);
     const proc = status['process'] as Record<string, unknown>;
@@ -70,7 +70,7 @@ test('status shows zeebe extension data on elements', async () => {
   const cwd = tmpDir();
   try {
     await setupModel('proc', cwd);
-    await append(['serviceTask', 'Execute'], cwd);
+    await append(['service-task', 'Execute'], cwd);
     await update(['zeebe:taskDefinition.type', 'my-worker'], cwd);
 
     const status = await getStatus(cwd);
@@ -89,7 +89,7 @@ test('status shows boundary event with attachedToRef and cancelActivity', async 
   const cwd = tmpDir();
   try {
     await setupModel('proc', cwd);
-    await append(['userTask', 'Review'], cwd); // Activity_1
+    await append(['user-task', 'Review'], cwd); // Activity_1
     await boundaryAppend(['timer', 'Timeout'], cwd); // BoundaryEvent_1 (interrupting)
     await boundaryAppend(['non-interrupting-message', 'Escalation', 'Activity_1'], cwd); // BoundaryEvent_2
 
@@ -114,7 +114,7 @@ test('status cursor reflects current cursor position', async () => {
   const cwd = tmpDir();
   try {
     await setupModel('proc', cwd);
-    await append(['userTask', 'Review'], cwd); // cursor → Activity_1
+    await append(['user-task', 'Review'], cwd); // cursor → Activity_1
     const status = await getStatus(cwd);
     assert.equal(status['cursor'], 'Activity_1');
   } finally {
@@ -126,7 +126,7 @@ test('status elements include incoming and outgoing flow ids for non-boundary el
   const cwd = tmpDir();
   try {
     await setupModel('proc', cwd);
-    await append(['endEvent', 'Done'], cwd);
+    await append(['end-event', 'Done'], cwd);
 
     const status = await getStatus(cwd);
     const proc = status['process'] as Record<string, unknown>;

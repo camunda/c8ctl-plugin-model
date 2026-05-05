@@ -9,7 +9,7 @@ test('select moves cursor to specified element', async () => {
   const cwd = tmpDir();
   try {
     await setupModel('proc', cwd);
-    await append(['userTask', 'Review'], cwd); // Activity_1, cursor → Activity_1
+    await append(['user-task', 'Review'], cwd); // Activity_1, cursor → Activity_1
     await select(['StartEvent_1'], cwd);
 
     const state = readState(cwd);
@@ -24,7 +24,7 @@ test('select preserves file path in state', async () => {
   try {
     await setupModel('proc', cwd);
     const before = readState(cwd);
-    await append(['userTask', 'Review'], cwd);
+    await append(['user-task', 'Review'], cwd);
     await select(['StartEvent_1'], cwd);
     const after = readState(cwd);
     assert.equal(after.file, before.file);
