@@ -80,6 +80,7 @@ npm test
 | `exclusive-gateway` | `Gateway` |
 | `parallel-gateway` | `Gateway` |
 | `inclusive-gateway` | `Gateway` |
+| `event-based-gateway` | `Gateway` |
 | `call-activity` | `Activity` |
 | `sub-process` | `Activity` |
 | `intermediate-catch-event` | `Event` |

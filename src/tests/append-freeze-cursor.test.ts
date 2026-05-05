@@ -15,6 +15,7 @@ const ELEMENT_TYPES: Array<[string, string]> = [
   ['exclusive-gateway', 'exclusiveGateway'],
   ['parallel-gateway', 'parallelGateway'],
   ['inclusive-gateway', 'inclusiveGateway'],
+  ['event-based-gateway', 'eventBasedGateway'],
   ['call-activity', 'callActivity'],
   ['sub-process', 'subProcess'],
   ['intermediate-catch-event', 'intermediateCatchEvent'],

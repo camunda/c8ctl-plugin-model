@@ -123,7 +123,7 @@ Boundary event types:
 
 Element types (append):
   start-event, end-event, task, user-task, service-task, script-task,
-  exclusive-gateway, parallel-gateway, inclusive-gateway, call-activity,
+  exclusive-gateway, parallel-gateway, inclusive-gateway, event-based-gateway, call-activity,
   sub-process, intermediate-catch-event, intermediate-throw-event
 
 Typed intermediate catch events (append):
