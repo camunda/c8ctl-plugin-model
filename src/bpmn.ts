@@ -215,12 +215,13 @@ function parseElementType(type: string): { bpmnType: string; defType?: string; e
 
 function nextId(process: ModdleElement, prefix: string): string {
   let max = 0;
+  const pattern = new RegExp(`^${prefix}_(\\d+)$`);
   for (const el of collectAllFlowElements(process)) {
-    const m = (el.id as string)?.match(new RegExp(`^${prefix}_(\\d+)$`));
+    const m = (el.id as string)?.match(pattern);
     if (m) max = Math.max(max, parseInt(m[1], 10));
   }
   for (const art of (process.artifacts ?? []) as ModdleElement[]) {
-    const m = (art.id as string)?.match(new RegExp(`^${prefix}_(\\d+)$`));
+    const m = (art.id as string)?.match(pattern);
     if (m) max = Math.max(max, parseInt(m[1], 10));
   }
   return `${prefix}_${max + 1}`;

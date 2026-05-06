@@ -278,6 +278,7 @@ export function recomputeLayout(moddle: BpmnModdle, definitions: ModdleElement):
 
   // Position text annotations above their associated elements
   const ANNOTATION_Y_OFFSET = -80;
+  const ANNOTATION_H_SPACING = 120;
   const artifacts: ModdleElement[] = process.artifacts ?? [];
   const annotations = artifacts.filter((a: ModdleElement) => a.$type === 'bpmn:TextAnnotation');
   const associations = artifacts.filter((a: ModdleElement) => a.$type === 'bpmn:Association');
@@ -298,7 +299,7 @@ export function recomputeLayout(moddle: BpmnModdle, definitions: ModdleElement):
     annotationCountPerElement.set(sourceId, idx + 1);
 
     const annSize = SIZES['textAnnotation'];
-    const annX = sourcePos.x - annSize.width / 2 + idx * 120;
+    const annX = sourcePos.x - annSize.width / 2 + idx * ANNOTATION_H_SPACING;
     const annY = sourcePos.y + ANNOTATION_Y_OFFSET - annSize.height / 2;
 
     annShape.bounds.x = annX;
