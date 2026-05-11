@@ -17,7 +17,7 @@ test('annotate adds text annotation to cursor element', async () => {
     const artifacts = proc['artifacts'] as Array<Record<string, unknown>>;
     assert.ok(artifacts, 'artifacts should exist');
     assert.equal(artifacts.length, 1);
-    assert.equal(artifacts[0]['type'], 'textAnnotation');
+    assert.equal(artifacts[0]['type'], 'TextAnnotation');
     assert.equal(artifacts[0]['text'], 'This is important');
     assert.equal(artifacts[0]['associatedTo'], 'StartEvent_1');
   } finally {

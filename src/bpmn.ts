@@ -869,7 +869,7 @@ function toArtifactsJson(process: ModdleElement): Record<string, unknown>[] {
     );
     const entry: Record<string, unknown> = {
       id: a.id,
-      type: 'textAnnotation',
+      type: 'TextAnnotation',
       text: a.text,
     };
     if (assoc) {
