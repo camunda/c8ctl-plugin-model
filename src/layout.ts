@@ -18,6 +18,7 @@ const SIZES: Record<string, { width: number; height: number }> = {
   parallelGateway: { width: 50, height: 50 },
   inclusiveGateway: { width: 50, height: 50 },
   eventBasedGateway: { width: 50, height: 50 },
+  textAnnotation: { width: 100, height: 30 },
 };
 
 function typeKey(el: ModdleElement): string {
@@ -273,5 +274,45 @@ export function recomputeLayout(moddle: BpmnModdle, definitions: ModdleElement):
       moddle.create('dc:Point', { x: srcPos.x + srcSize.width / 2, y: srcPos.y }),
       moddle.create('dc:Point', { x: tgtPos.x - tgtSize.width / 2, y: tgtPos.y }),
     ];
+  }
+
+  // Position text annotations above their associated elements
+  const ANNOTATION_Y_OFFSET = -80;
+  const ANNOTATION_H_SPACING = 120;
+  const artifacts: ModdleElement[] = process.artifacts ?? [];
+  const annotations = artifacts.filter((a: ModdleElement) => a.$type === 'bpmn:TextAnnotation');
+  const associations = artifacts.filter((a: ModdleElement) => a.$type === 'bpmn:Association');
+  const annotationCountPerElement = new Map<string, number>();
+
+  for (const ann of annotations) {
+    const assoc = associations.find(
+      (a: ModdleElement) => (a.targetRef?.id ?? a.targetRef) === ann.id,
+    );
+    if (!assoc) continue;
+
+    const sourceId: string = assoc.sourceRef?.id ?? assoc.sourceRef;
+    const sourcePos = pos.get(sourceId);
+    const annShape = shapeMap.get(ann.id as string);
+    if (!sourcePos || !annShape) continue;
+
+    const idx = annotationCountPerElement.get(sourceId) ?? 0;
+    annotationCountPerElement.set(sourceId, idx + 1);
+
+    const annSize = SIZES['textAnnotation'];
+    const annX = sourcePos.x - annSize.width / 2 + idx * ANNOTATION_H_SPACING;
+    const annY = sourcePos.y + ANNOTATION_Y_OFFSET - annSize.height / 2;
+
+    annShape.bounds.x = annX;
+    annShape.bounds.y = annY;
+    annShape.bounds.width = annSize.width;
+    annShape.bounds.height = annSize.height;
+
+    const assocEdge = edgeMap.get(assoc.id as string);
+    if (assocEdge) {
+      assocEdge.waypoint = [
+        moddle.create('dc:Point', { x: sourcePos.x, y: sourcePos.y }),
+        moddle.create('dc:Point', { x: annX + annSize.width / 2, y: annY + annSize.height }),
+      ];
+    }
   }
 }

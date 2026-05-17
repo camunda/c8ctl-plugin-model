@@ -215,8 +215,13 @@ function parseElementType(type: string): { bpmnType: string; defType?: string; e
 
 function nextId(process: ModdleElement, prefix: string): string {
   let max = 0;
+  const pattern = new RegExp(`^${prefix}_(\\d+)$`);
   for (const el of collectAllFlowElements(process)) {
-    const m = (el.id as string)?.match(new RegExp(`^${prefix}_(\\d+)$`));
+    const m = (el.id as string)?.match(pattern);
+    if (m) max = Math.max(max, parseInt(m[1], 10));
+  }
+  for (const art of (process.artifacts ?? []) as ModdleElement[]) {
+    const m = (art.id as string)?.match(pattern);
     if (m) max = Math.max(max, parseInt(m[1], 10));
   }
   return `${prefix}_${max + 1}`;
@@ -510,6 +515,50 @@ export function addBoundaryEvent(
   return boundaryEvent;
 }
 
+export function addTextAnnotation(
+  moddle: BpmnModdle,
+  definitions: ModdleElement,
+  text: string,
+  elementId: string,
+): ModdleElement {
+  const process = getProcess(definitions);
+  const target = getElementById(definitions, elementId);
+  if (!target) throw new Error(`Element '${elementId}' not found`);
+
+  const annotationId = nextId(process, 'TextAnnotation');
+  const annotation = moddle.create('bpmn:TextAnnotation', {
+    id: annotationId,
+    text,
+  });
+
+  const associationId = nextId(process, 'Association');
+  const association = moddle.create('bpmn:Association', {
+    id: associationId,
+    sourceRef: target,
+    targetRef: annotation,
+  });
+
+  process.artifacts = [...(process.artifacts ?? []), annotation, association];
+
+  const diagram = definitions.diagrams?.[0];
+  const plane = diagram?.plane;
+  if (plane) {
+    const shape = moddle.create('bpmndi:BPMNShape', {
+      id: `${annotationId}_di`,
+      bpmnElement: annotation,
+      bounds: moddle.create('dc:Bounds', { x: 0, y: 0, width: 100, height: 30 }),
+    });
+    const edge = moddle.create('bpmndi:BPMNEdge', {
+      id: `${associationId}_di`,
+      bpmnElement: association,
+      waypoint: [],
+    });
+    plane.planeElement = [...(plane.planeElement ?? []), shape, edge];
+  }
+
+  return annotation;
+}
+
 function getOrCreateExtensionElements(moddle: BpmnModdle, el: ModdleElement): ModdleElement {
   if (!el.extensionElements) {
     el.extensionElements = moddle.create('bpmn:ExtensionElements', { values: [] });
@@ -795,13 +844,38 @@ function toContainerJson(container: ModdleElement): { elements: Record<string, u
 export function toStatusJson(definitions: ModdleElement, cursor: string): Record<string, unknown> {
   const process = getProcess(definitions);
   const { elements, flows } = toContainerJson(process);
-  return {
+  const artifacts = toArtifactsJson(process);
+  const result: Record<string, unknown> = {
     cursor,
     process: {
       id: process.id,
       name: process.name,
       elements,
       flows,
+      ...(artifacts.length > 0 ? { artifacts } : {}),
     },
   };
+  return result;
+}
+
+function toArtifactsJson(process: ModdleElement): Record<string, unknown>[] {
+  const arts: ModdleElement[] = process.artifacts ?? [];
+  const annotations = arts.filter((a: ModdleElement) => a.$type === 'bpmn:TextAnnotation');
+  const associations = arts.filter((a: ModdleElement) => a.$type === 'bpmn:Association');
+
+  return annotations.map((a: ModdleElement) => {
+    const assoc = associations.find(
+      (asc: ModdleElement) => (asc.targetRef?.id ?? asc.targetRef) === a.id,
+    );
+    const entry: Record<string, unknown> = {
+      id: a.id,
+      type: 'TextAnnotation',
+      text: a.text,
+    };
+    if (assoc) {
+      entry['associatedTo'] = assoc.sourceRef?.id ?? assoc.sourceRef;
+      entry['associationId'] = assoc.id;
+    }
+    return entry;
+  });
 }
