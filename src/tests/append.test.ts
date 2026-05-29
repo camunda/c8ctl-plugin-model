@@ -73,6 +73,23 @@ for (const [type, expectedType] of ELEMENT_TYPES) {
   });
 }
 
+test('append user-task emits zeebe:UserTask marker', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupModel('proc', cwd);
+    await append(['user-task', 'Review'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['id'] === 'Activity_1');
+    const zeebe = el?.['zeebe'] as Record<string, unknown>;
+    assert.equal(zeebe?.['userTask'], true, 'zeebe:UserTask marker should be present');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
 test('append moves cursor to new element', async () => {
   const cwd = tmpDir();
   try {

@@ -909,3 +909,51 @@ test('update ad-hoc.cancelRemainingInstances true', async () => {
     cleanup(cwd);
   }
 });
+
+test('update zeebe:userTask.disabled true removes zeebe:UserTask marker', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithTask(cwd);
+    await update(['zeebe:userTask.disabled', 'true'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['id'] === 'Activity_1');
+    const zeebe = el?.['zeebe'] as Record<string, unknown> | undefined;
+    assert.ok(!zeebe?.['userTask'], 'zeebe:UserTask marker should be absent');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update zeebe:userTask.disabled false restores zeebe:UserTask marker', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithTask(cwd);
+    await update(['zeebe:userTask.disabled', 'true'], cwd);
+    await update(['zeebe:userTask.disabled', 'false'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['id'] === 'Activity_1');
+    const zeebe = el?.['zeebe'] as Record<string, unknown>;
+    assert.equal(zeebe?.['userTask'], true, 'zeebe:UserTask marker should be restored');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update zeebe:userTask.disabled throws on non-user-task', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithGateway(cwd);
+    await assert.rejects(
+      () => update(['zeebe:userTask.disabled', 'true'], cwd),
+      /can only be set on user-task/,
+    );
+  } finally {
+    cleanup(cwd);
+  }
+});

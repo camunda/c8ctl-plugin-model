@@ -83,20 +83,20 @@ npm test
 
 #### Tasks
 
-| Type | ID prefix |
-| --- | --- |
-| `task` | `Activity` |
-| `user-task` | `Activity` |
-| `service-task` | `Activity` |
-| `script-task` | `Activity` |
-| `send-task` | `Activity` |
-| `receive-task` | `Activity` |
-| `manual-task` | `Activity` |
-| `business-rule-task` | `Activity` |
-| `call-activity` | `Activity` |
-| `sub-process` | `Activity` |
-| `ad-hoc-sub-process` | `Activity` |
-| `event-sub-process` | `Activity` |
+| Type | ID prefix | Notes |
+| --- | --- | --- |
+| `task` | `Activity` | — |
+| `user-task` | `Activity` | Adds `<zeebe:userTask />` marker (Zeebe user task, recommended for Camunda 8.5+) |
+| `service-task` | `Activity` | — |
+| `script-task` | `Activity` | — |
+| `send-task` | `Activity` | — |
+| `receive-task` | `Activity` | — |
+| `manual-task` | `Activity` | — |
+| `business-rule-task` | `Activity` | — |
+| `call-activity` | `Activity` | — |
+| `sub-process` | `Activity` | — |
+| `ad-hoc-sub-process` | `Activity` | — |
+| `event-sub-process` | `Activity` | — |
 
 `event-sub-process` sets `triggeredByEvent=true`; prefer `create` since it has no incoming flow.
 
@@ -189,6 +189,7 @@ Host element must be an activity (`task`, `user-task`, `service-task`, `script-t
 | `zeebe:output` | `<source> <target>` | source | — |
 | `zeebe:header` | `<key> <value>` | key | — |
 | `zeebe:property` | `<name> <value>` | name | — |
+| `zeebe:userTask.disabled` | `true` \| `false` | — | Only on `user-task`; `true` removes the `<zeebe:userTask />` marker (reverts to job-worker behavior) |
 | `isInterrupting` | `true` \| `false` | — | Sets interrupting flag on start events inside event sub-processes; default `true` |
 | `multi-instance.type` | `parallel` \| `sequential` | — | Creates or updates `bpmn:MultiInstanceLoopCharacteristics`; set this before zeebe loop properties |
 | `zeebe:loopCharacteristics.inputCollection` | `<expression>` | — | Requires `multi-instance.type` to be set first |

@@ -245,6 +245,14 @@ function idPrefix(bpmnType: string): string {
   return 'Activity';
 }
 
+function addZeebeUserTaskMarker(moddle: BpmnModdle, el: ModdleElement): void {
+  const ext = getOrCreateExtensionElements(moddle, el);
+  const existing = (ext.values ?? []).find((v: ModdleElement) => v.$type === 'zeebe:UserTask');
+  if (!existing) {
+    ext.values = [...(ext.values ?? []), moddle.create('zeebe:UserTask', {})];
+  }
+}
+
 export function addElement(
   moddle: BpmnModdle,
   definitions: ModdleElement,
@@ -262,6 +270,7 @@ export function addElement(
     elProps.eventDefinitions = [moddle.create(defType, { id: nextEventDefId(process) })];
   }
   const newEl = moddle.create(bpmnType, elProps);
+  if (bpmnType === 'bpmn:UserTask') addZeebeUserTaskMarker(moddle, newEl);
 
   const source = getElementById(definitions, sourceId);
   if (!source) throw new Error(`Source element '${sourceId}' not found`);
@@ -320,6 +329,7 @@ export function addChildElement(
     elProps.eventDefinitions = [moddle.create(defType, { id: nextEventDefId(process) })];
   }
   const newEl = moddle.create(bpmnType, elProps);
+  if (bpmnType === 'bpmn:UserTask') addZeebeUserTaskMarker(moddle, newEl);
 
   parent.flowElements = [...(parent.flowElements ?? []), newEl];
 
@@ -352,6 +362,7 @@ export function createElement(
     elProps.eventDefinitions = [moddle.create(defType, { id: nextEventDefId(process) })];
   }
   const newEl = moddle.create(bpmnType, elProps);
+  if (bpmnType === 'bpmn:UserTask') addZeebeUserTaskMarker(moddle, newEl);
 
   process.flowElements = [...(process.flowElements ?? []), newEl];
 
@@ -711,6 +722,23 @@ export function updateElementProperty(
     return;
   }
 
+  if (prop === 'zeebe:userTask.disabled') {
+    if (el.$type !== 'bpmn:UserTask') {
+      throw new Error(`'zeebe:userTask.disabled' can only be set on user-task`);
+    }
+    const disabled = values[0] !== 'false';
+    if (disabled) {
+      if (el.extensionElements) {
+        el.extensionElements.values = (el.extensionElements.values ?? []).filter(
+          (v: ModdleElement) => v.$type !== 'zeebe:UserTask',
+        );
+      }
+    } else {
+      addZeebeUserTaskMarker(moddle, el);
+    }
+    return;
+  }
+
   if (prop === 'ad-hoc.ordering') {
     const ordering = values[0];
     if (ordering !== 'Sequential' && ordering !== 'Parallel') {
@@ -734,7 +762,8 @@ export function updateElementProperty(
   throw new Error(
     `Unknown property '${prop}'. Supported: name, zeebe:taskDefinition.type, zeebe:taskDefinition.retries, ` +
     `zeebe:calledDecision.decisionId, zeebe:calledDecision.resultVariable, ` +
-    `zeebe:input, zeebe:output, zeebe:header, zeebe:property, isInterrupting, multi-instance.type, ` +
+    `zeebe:input, zeebe:output, zeebe:header, zeebe:property, zeebe:userTask.disabled, ` +
+    `isInterrupting, multi-instance.type, ` +
     `zeebe:loopCharacteristics.inputCollection, zeebe:loopCharacteristics.inputElement, ` +
     `zeebe:loopCharacteristics.outputCollection, zeebe:loopCharacteristics.outputElement, ` +
     `ad-hoc.ordering, ad-hoc.cancelRemainingInstances`,
@@ -765,6 +794,8 @@ function extractZeebe(el: ModdleElement): Record<string, unknown> | undefined {
       if (v.decisionId != null) cd['decisionId'] = v.decisionId;
       if (v.resultVariable != null) cd['resultVariable'] = v.resultVariable;
       if (Object.keys(cd).length > 0) result['calledDecision'] = cd;
+    } else if (type === 'zeebe:UserTask') {
+      result['userTask'] = true;
     } else if (type === 'zeebe:LoopCharacteristics') {
       const lc: Record<string, string> = {};
       if (v.inputCollection != null) lc['inputCollection'] = v.inputCollection;
