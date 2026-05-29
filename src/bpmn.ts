@@ -853,6 +853,8 @@ function toElementJson(e: ModdleElement): Record<string, unknown> {
   if (docs.length > 0) {
     const doc = docs[0];
     const docEntry: Record<string, unknown> = { text: doc.text };
+    // Omit textFormat when it is the BPMN-spec default ('text/plain') to keep
+    // the status output concise; only non-default values are meaningful here.
     if (doc.textFormat !== undefined && doc.textFormat !== 'text/plain') {
       docEntry['textFormat'] = doc.textFormat;
     }
