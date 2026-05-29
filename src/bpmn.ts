@@ -447,6 +447,8 @@ const ACTIVITY_TYPES = new Set([
 
 const VALID_HOST_TYPES = ACTIVITY_TYPES;
 
+const FORM_DEFINITION_EXCLUSIVE_KEYS = ['formId', 'formKey', 'externalReference'];
+
 function assertActivity(el: ModdleElement, prop: string): void {
   if (!ACTIVITY_TYPES.has(el.$type as string)) {
     throw new Error(`'${prop}' can only be set on activities`);
@@ -802,9 +804,8 @@ export function updateElementProperty(
       );
     }
     const fd = getOrCreateZeebeChild(moddle, el, 'zeebe:FormDefinition');
-    const exclusiveKeys = ['formId', 'formKey', 'externalReference'];
-    if (exclusiveKeys.includes(key)) {
-      for (const other of exclusiveKeys) {
+    if (FORM_DEFINITION_EXCLUSIVE_KEYS.includes(key)) {
+      for (const other of FORM_DEFINITION_EXCLUSIVE_KEYS) {
         if (other !== key && fd[other] != null) {
           logger?.warn(`Clearing '${other}' because it is mutually exclusive with '${key}'`);
           fd[other] = undefined;
