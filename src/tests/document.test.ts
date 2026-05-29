@@ -124,12 +124,13 @@ test('document throws without required arguments', async () => {
   }
 });
 
-test('document omits textFormat from status when using default', async () => {
+test('document clears textFormat when updating without --format', async () => {
   const cwd = tmpDir();
   try {
     await setupModel('proc', cwd);
 
-    await document(['Plain text documentation'], cwd);
+    await document(['**Important**', '--format', 'text/markdown'], cwd);
+    await document(['Plain text now'], cwd);
 
     const status = await getStatus(cwd);
     const proc = status['process'] as Record<string, unknown>;
@@ -138,7 +139,8 @@ test('document omits textFormat from status when using default', async () => {
     assert.ok(startEvent, 'start event should exist');
     const doc = startEvent['documentation'] as Record<string, unknown>;
     assert.ok(doc, 'documentation should be set');
-    assert.equal(doc['textFormat'], undefined, 'textFormat should not appear for default value');
+    assert.equal(doc['text'], 'Plain text now');
+    assert.equal(doc['textFormat'], undefined, 'textFormat should be cleared when not provided');
   } finally {
     cleanup(cwd);
   }

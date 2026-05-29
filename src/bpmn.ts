@@ -569,18 +569,20 @@ export function setDocumentation(
   const target = getElementById(definitions, elementId);
   if (!target) throw new Error(`Element '${elementId}' not found`);
 
-  const props: Record<string, unknown> = { text };
-  if (textFormat !== undefined) props['textFormat'] = textFormat;
-  const docElement = moddle.create('bpmn:Documentation', props);
-
   const existing: ModdleElement[] = target.documentation ?? [];
   if (existing.length > 0) {
     existing[0].text = text;
+    // Explicitly set or clear textFormat so the result is idempotent
     if (textFormat !== undefined) {
       existing[0].textFormat = textFormat;
+    } else {
+      delete existing[0].textFormat;
     }
   } else {
-    target.documentation = [docElement, ...existing];
+    const props: Record<string, unknown> = { text };
+    if (textFormat !== undefined) props['textFormat'] = textFormat;
+    const docElement = moddle.create('bpmn:Documentation', props);
+    target.documentation = [docElement];
   }
 }
 
