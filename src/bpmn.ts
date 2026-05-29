@@ -769,6 +769,22 @@ export function updateElementProperty(
     return;
   }
 
+  if (prop.startsWith('zeebe:adHoc.')) {
+    if (el.$type !== 'bpmn:AdHocSubProcess') {
+      throw new Error(`'${prop}' can only be set on ad-hoc sub-processes`);
+    }
+    const key = prop.slice('zeebe:adHoc.'.length);
+    const validKeys = ['outputCollection', 'outputElement', 'activeElementsCollection'];
+    if (!validKeys.includes(key)) {
+      throw new Error(
+        `Unknown zeebe:adHoc property '${key}'. Supported: ${validKeys.join(', ')}`,
+      );
+    }
+    const adHoc = getOrCreateZeebeChild(moddle, el, 'zeebe:AdHoc');
+    adHoc[key] = values[0];
+    return;
+  }
+
   if (prop === 'ad-hoc.ordering') {
     const ordering = values[0];
     if (ordering !== 'Sequential' && ordering !== 'Parallel') {
@@ -796,6 +812,7 @@ export function updateElementProperty(
     `isInterrupting, multi-instance.type, ` +
     `zeebe:loopCharacteristics.inputCollection, zeebe:loopCharacteristics.inputElement, ` +
     `zeebe:loopCharacteristics.outputCollection, zeebe:loopCharacteristics.outputElement, ` +
+    `zeebe:adHoc.outputCollection, zeebe:adHoc.outputElement, zeebe:adHoc.activeElementsCollection, ` +
     `ad-hoc.ordering, ad-hoc.cancelRemainingInstances`,
   );
 }
@@ -836,6 +853,12 @@ function extractZeebe(el: ModdleElement): Record<string, unknown> | undefined {
       if (v.outputCollection != null) lc['outputCollection'] = v.outputCollection;
       if (v.outputElement != null) lc['outputElement'] = v.outputElement;
       if (Object.keys(lc).length > 0) result['loopCharacteristics'] = lc;
+    } else if (type === 'zeebe:AdHoc') {
+      const ah: Record<string, string> = {};
+      if (v.outputCollection != null) ah['outputCollection'] = v.outputCollection;
+      if (v.outputElement != null) ah['outputElement'] = v.outputElement;
+      if (v.activeElementsCollection != null) ah['activeElementsCollection'] = v.activeElementsCollection;
+      if (Object.keys(ah).length > 0) result['adHoc'] = ah;
     }
   }
 
