@@ -1809,3 +1809,102 @@ test('update zeebe:adHoc unknown key throws', async () => {
     cleanup(cwd);
   }
 });
+
+// --- update id ---
+
+test('update id renames cursor element and updates cursor state', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithTask(cwd);
+    await update(['id', 'ReviewTask'], cwd);
+
+    const status = await getStatus(cwd);
+    assert.equal(status['cursor'], 'ReviewTask');
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['id'] === 'ReviewTask');
+    assert.ok(el, 'element with new ID should exist');
+    assert.equal(el?.['name'], 'Review');
+    const old = elements.find((e) => e['id'] === 'Activity_1');
+    assert.ok(!old, 'old ID should no longer exist');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update id updates incoming/outgoing flow references', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithTask(cwd);
+    await update(['id', 'ReviewTask'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const flows = proc['flows'] as Array<Record<string, unknown>>;
+    const flow = flows.find((f) => f['target'] === 'ReviewTask');
+    assert.ok(flow, 'flow targeting new ID should exist');
+    assert.equal(flow?.['source'], 'StartEvent_1');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update id does not update cursor when targeting non-cursor element explicitly', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupModel('proc', cwd);
+    await append(['user-task', 'Review'], cwd); // Activity_1, cursor → Activity_1
+    await append(['service-task', 'Execute'], cwd); // Activity_2, cursor → Activity_2
+    await update(['Activity_1', 'id', 'ReviewTask'], cwd); // rename Activity_1, cursor stays Activity_2
+
+    const { readState: rs } = await import('../state.js');
+    const state = rs(cwd);
+    assert.equal(state.cursor, 'Activity_2');
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    assert.ok(elements.find((e) => e['id'] === 'ReviewTask'), 'ReviewTask should exist');
+    assert.ok(elements.find((e) => e['id'] === 'Activity_2'), 'Activity_2 cursor should still exist');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update id rejects invalid ID format', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithTask(cwd);
+    await assert.rejects(() => update(['id', '123Invalid'], cwd), /Invalid ID/);
+    await assert.rejects(() => update(['id', 'has space'], cwd), /Invalid ID/);
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update id rejects duplicate ID', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupModel('proc', cwd);
+    await append(['user-task', 'Review'], cwd); // Activity_1
+    await append(['service-task', 'Execute'], cwd); // Activity_2
+    await assert.rejects(() => update(['id', 'Activity_1'], cwd), /already used/);
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update id allows underscore and dot in semantic ID', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithTask(cwd);
+    await update(['id', 'Order_Validation.Task'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    assert.ok(elements.find((e) => e['id'] === 'Order_Validation.Task'), 'semantic ID with dots/underscores should work');
+  } finally {
+    cleanup(cwd);
+  }
+});

@@ -116,6 +116,59 @@ export function findContainerOf(definitions: ModdleElement, id: string): ModdleE
   return findContainerOfHelper(process, id);
 }
 
+// Validates user-supplied IDs against the xsd:ID production rule (BPMN 2.0 §7.5.1).
+// This is intentionally more permissive than ELEMENT_ID_PATTERN in args.ts, which only
+// matches auto-generated IDs like `Activity_1` used for positional-arg disambiguation.
+const BPMN_ID_PATTERN = /^[A-Za-z_][\w.-]*$/;
+
+function collectAllIds(definitions: ModdleElement): Set<string> {
+  const ids = new Set<string>();
+  if (definitions.id) ids.add(definitions.id as string);
+  for (const re of definitions.rootElements ?? []) {
+    if (re.id) ids.add(re.id as string);
+    for (const el of collectAllFlowElements(re)) {
+      if (el.id) ids.add(el.id as string);
+    }
+    for (const art of re.artifacts ?? []) {
+      if (art.id) ids.add(art.id as string);
+    }
+  }
+  return ids;
+}
+
+export function renameElementId(
+  definitions: ModdleElement,
+  el: ModdleElement,
+  newId: string,
+): void {
+  if (!BPMN_ID_PATTERN.test(newId)) {
+    throw new Error(
+      `Invalid ID '${newId}'. IDs must match xsd:ID format: ` +
+      `start with a letter or underscore, followed by letters, digits, underscores, hyphens, or dots.`,
+    );
+  }
+
+  const allIds = collectAllIds(definitions);
+  if (allIds.has(newId)) {
+    throw new Error(`ID '${newId}' is already used by another element`);
+  }
+
+  const oldId = el.id as string;
+  el.id = newId;
+
+  // Update the corresponding DI shape or edge ID
+  const diagram = definitions.diagrams?.[0];
+  const plane = diagram?.plane;
+  if (plane) {
+    const diElement = (plane.planeElement ?? []).find(
+      (pe: ModdleElement) => pe.id === `${oldId}_di`,
+    );
+    if (diElement) {
+      diElement.id = `${newId}_di`;
+    }
+  }
+}
+
 function normalizeBpmnType(type: string): string {
   const camel = type.replace(/-([a-z])/g, (_: string, c: string) => c.toUpperCase());
   const capitalized = camel.charAt(0).toUpperCase() + camel.slice(1);
