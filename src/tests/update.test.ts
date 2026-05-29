@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { append } from '../commands/append.js';
+import { boundaryAppend } from '../commands/boundary-append.js';
 import { create } from '../commands/create.js';
 import { update } from '../commands/update.js';
 import { tmpDir, cleanup, setupModel, getStatus } from './helpers.js';
@@ -905,6 +906,184 @@ test('update ad-hoc.cancelRemainingInstances true', async () => {
     const elements = proc['elements'] as Array<Record<string, unknown>>;
     const el = elements.find((e) => e['id'] === 'Activity_1');
     assert.equal(el?.['cancelRemainingInstances'], true);
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+// --- timer.timeDuration / timer.timeCycle / timer.timeDate ---
+
+async function setupWithTimerBoundary(cwd: string): Promise<void> {
+  await setupModel('proc', cwd);
+  await append(['user-task', 'Review'], cwd); // Activity_1
+  await boundaryAppend(['timer', 'Timeout'], cwd); // BoundaryEvent_1, cursor → BoundaryEvent_1
+}
+
+test('update timer.timeDuration sets duration on boundary timer event', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithTimerBoundary(cwd);
+    await update(['timer.timeDuration', 'PT1H'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['id'] === 'BoundaryEvent_1');
+    const timer = el?.['timer'] as Record<string, unknown>;
+    assert.equal(timer?.['timeDuration'], 'PT1H');
+    assert.equal(timer?.['timeCycle'], undefined);
+    assert.equal(timer?.['timeDate'], undefined);
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update timer.timeCycle sets cycle on boundary timer event', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithTimerBoundary(cwd);
+    await update(['timer.timeCycle', 'R/PT1H'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['id'] === 'BoundaryEvent_1');
+    const timer = el?.['timer'] as Record<string, unknown>;
+    assert.equal(timer?.['timeCycle'], 'R/PT1H');
+    assert.equal(timer?.['timeDuration'], undefined);
+    assert.equal(timer?.['timeDate'], undefined);
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update timer.timeDate sets date on boundary timer event', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithTimerBoundary(cwd);
+    await update(['timer.timeDate', '2025-12-31T23:59:59Z'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['id'] === 'BoundaryEvent_1');
+    const timer = el?.['timer'] as Record<string, unknown>;
+    assert.equal(timer?.['timeDate'], '2025-12-31T23:59:59Z');
+    assert.equal(timer?.['timeDuration'], undefined);
+    assert.equal(timer?.['timeCycle'], undefined);
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update timer property clears previously set timer property (mutual exclusion)', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithTimerBoundary(cwd);
+    await update(['timer.timeDuration', 'PT1H'], cwd);
+    await update(['timer.timeCycle', 'R/PT30M'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['id'] === 'BoundaryEvent_1');
+    const timer = el?.['timer'] as Record<string, unknown>;
+    assert.equal(timer?.['timeCycle'], 'R/PT30M');
+    assert.equal(timer?.['timeDuration'], undefined);
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update timer.timeDuration on timer-intermediate-catch-event', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupModel('proc', cwd);
+    await append(['timer-intermediate-catch-event', 'Wait'], cwd); // Event_1
+
+    await update(['timer.timeDuration', 'PT5M'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['id'] === 'Event_1');
+    const timer = el?.['timer'] as Record<string, unknown>;
+    assert.equal(timer?.['timeDuration'], 'PT5M');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update timer.timeDuration on timer-start-event', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupModel('proc', cwd);
+    await create(['timer-start-event', 'Scheduled Start'], cwd); // StartEvent_2
+
+    await update(['timer.timeDuration', 'PT10M'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['id'] === 'StartEvent_2');
+    const timer = el?.['timer'] as Record<string, unknown>;
+    assert.equal(timer?.['timeDuration'], 'PT10M');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update timer.timeDuration with FEEL expression (= prefix)', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithTimerBoundary(cwd);
+    await update(['timer.timeDuration', '=duration("PT1H")'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['id'] === 'BoundaryEvent_1');
+    const timer = el?.['timer'] as Record<string, unknown>;
+    assert.equal(timer?.['timeDuration'], '=duration("PT1H")');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update timer.timeDuration throws on non-timer element', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithTask(cwd);
+    await assert.rejects(
+      () => update(['timer.timeDuration', 'PT1H'], cwd),
+      /bpmn:timerEventDefinition/,
+    );
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update timer.timeCycle throws on non-timer element', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithTask(cwd);
+    await assert.rejects(
+      () => update(['timer.timeCycle', 'R/PT1H'], cwd),
+      /bpmn:timerEventDefinition/,
+    );
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update timer.timeDate throws on non-timer element', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithTask(cwd);
+    await assert.rejects(
+      () => update(['timer.timeDate', '2025-12-31T23:59:59Z'], cwd),
+      /bpmn:timerEventDefinition/,
+    );
   } finally {
     cleanup(cwd);
   }

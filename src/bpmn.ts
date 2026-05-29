@@ -731,13 +731,29 @@ export function updateElementProperty(
     return;
   }
 
+  if (prop === 'timer.timeDuration' || prop === 'timer.timeCycle' || prop === 'timer.timeDate') {
+    const eventDefs: ModdleElement[] = el.eventDefinitions ?? [];
+    const timerDef = eventDefs.find((d: ModdleElement) => d.$type === 'bpmn:TimerEventDefinition');
+    if (!timerDef) {
+      throw new Error(`'${prop}' can only be set on elements with a bpmn:timerEventDefinition`);
+    }
+    const key = prop.slice('timer.'.length) as 'timeDuration' | 'timeCycle' | 'timeDate';
+    const expr = moddle.create('bpmn:FormalExpression', { body: values[0] });
+    timerDef.timeDuration = undefined;
+    timerDef.timeCycle = undefined;
+    timerDef.timeDate = undefined;
+    timerDef[key] = expr;
+    return;
+  }
+
   throw new Error(
     `Unknown property '${prop}'. Supported: name, zeebe:taskDefinition.type, zeebe:taskDefinition.retries, ` +
     `zeebe:calledDecision.decisionId, zeebe:calledDecision.resultVariable, ` +
     `zeebe:input, zeebe:output, zeebe:header, zeebe:property, isInterrupting, multi-instance.type, ` +
     `zeebe:loopCharacteristics.inputCollection, zeebe:loopCharacteristics.inputElement, ` +
     `zeebe:loopCharacteristics.outputCollection, zeebe:loopCharacteristics.outputElement, ` +
-    `ad-hoc.ordering, ad-hoc.cancelRemainingInstances`,
+    `ad-hoc.ordering, ad-hoc.cancelRemainingInstances, ` +
+    `timer.timeDuration, timer.timeCycle, timer.timeDate`,
   );
 }
 
@@ -799,6 +815,14 @@ function toElementJson(e: ModdleElement): Record<string, unknown> {
           outgoing: (e.outgoing ?? []).map((f: ModdleElement) => f.id),
         }),
   };
+  if (eventDefinition === 'timer' && defs.length > 0) {
+    const timerDef = defs[0];
+    const timerEntry: Record<string, unknown> = {};
+    if (timerDef.timeDuration?.body !== undefined) timerEntry['timeDuration'] = timerDef.timeDuration.body;
+    if (timerDef.timeCycle?.body !== undefined) timerEntry['timeCycle'] = timerDef.timeCycle.body;
+    if (timerDef.timeDate?.body !== undefined) timerEntry['timeDate'] = timerDef.timeDate.body;
+    if (Object.keys(timerEntry).length > 0) entry['timer'] = timerEntry;
+  }
   const zeebe = extractZeebe(e);
   if (zeebe) entry['zeebe'] = zeebe;
   if (e.loopCharacteristics?.$type === 'bpmn:MultiInstanceLoopCharacteristics') {
