@@ -1,13 +1,15 @@
-import { addElement, loadFile, saveFile, getElementById } from '../bpmn.js';
+import { addElement, loadFile, saveFile, getElementById, renameElementId } from '../bpmn.js';
 import { readState, writeState } from '../state.js';
 import type { CommandLogger } from '../logger.js';
+import { ELEMENT_ID_PATTERN, extractIdFlag } from './args.js';
 
-export const ELEMENT_ID_PATTERN = /^[A-Za-z]+_\d+$/;
+export { ELEMENT_ID_PATTERN };
 
 export async function append(args: string[], cwd: string, logger?: CommandLogger): Promise<void> {
-  const [type, ...rest] = args;
+  const { id: customId, remaining: argsWithoutId } = extractIdFlag(args);
+  const [type, ...rest] = argsWithoutId;
   if (!type || rest.length === 0) {
-    throw new Error('Usage: c8ctl model append <type> <label> [sourceElementId]');
+    throw new Error('Usage: c8ctl model append <type> <label> [sourceElementId] [--id <id>]');
   }
 
   const lastArg = rest[rest.length - 1];
@@ -15,7 +17,7 @@ export async function append(args: string[], cwd: string, logger?: CommandLogger
 
   const labelParts = hasExplicitSource ? rest.slice(0, -1) : rest;
   const label = labelParts.join(' ');
-  if (!label) throw new Error('Usage: c8ctl model append <type> <label> [sourceElementId]');
+  if (!label) throw new Error('Usage: c8ctl model append <type> <label> [sourceElementId] [--id <id>]');
 
   const state = readState(cwd);
   const sourceId = hasExplicitSource ? lastArg : state.cursor;
@@ -26,9 +28,13 @@ export async function append(args: string[], cwd: string, logger?: CommandLogger
   }
 
   const newEl = addElement(moddle, definitions, type, label, sourceId);
+  if (customId !== undefined) {
+    renameElementId(definitions, newEl, customId);
+  }
   await saveFile(state.file, moddle, definitions);
 
-  writeState(cwd, { ...state, cursor: newEl.id });
-  logger?.success(`Appended ${newEl.$type} '${label}' (${newEl.id})`);
-  logger?.info(`Cursor: ${newEl.id}`);
+  const finalId = customId ?? newEl.id;
+  writeState(cwd, { ...state, cursor: finalId });
+  logger?.success(`Appended ${newEl.$type} '${label}' (${finalId})`);
+  logger?.info(`Cursor: ${finalId}`);
 }
