@@ -4,7 +4,7 @@
  * Each test builds a complete, realistic BPMN process using the plugin
  * commands, following Camunda modeling best practices.  After construction
  * the resulting .bpmn file is validated with bpmnlint using the
- * camunda-compat plugin (Camunda 8.6 rule-set) so that every generated
+ * camunda-compat plugin (Camunda Cloud 8.10 rule-set) so that every generated
  * model is guaranteed to be lint-clean.
  *
  * Collectively the scenarios exercise **every** `c8ctl model` subcommand
@@ -266,7 +266,7 @@ test('best-practice: sub-process with boundary timer escalation', async () => {
     await selectParent([], cwd); // back to Activity_1 (sub-process)
 
     // boundary conditional → escalation path
-    await boundaryAppend(['non-interrupting-conditional', 'SLA Warning'], cwd); // BoundaryEvent_1
+    await boundaryAppend(['non-interrupting-conditional', 'Condition Met'], cwd); // BoundaryEvent_1
     await append(['service-task', 'Notify Manager'], cwd);           // Activity_3
     await update(['zeebe:taskDefinition.type', 'notify-manager'], cwd);
     await append(['end-event', 'Escalated'], cwd);                   // EndEvent_2

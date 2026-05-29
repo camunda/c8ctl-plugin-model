@@ -707,7 +707,7 @@ export function updateElementProperty(
       );
     }
     if (!el.loopCharacteristics || el.loopCharacteristics.$type !== 'bpmn:MultiInstanceLoopCharacteristics') {
-      throw new Error(`Set 'multi-instance.type' before setting zeebe:loopCharacteristics properties`);
+      throw new Error(`Set 'multi-instance.type' to 'parallel' or 'sequential' before setting zeebe:loopCharacteristics properties`);
     }
     const loopChar = getOrCreateZeebeChild(moddle, el.loopCharacteristics, 'zeebe:LoopCharacteristics');
     loopChar[key] = values[0];
