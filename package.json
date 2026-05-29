@@ -3,7 +3,12 @@
   "version": "1.0.0",
   "type": "module",
   "description": "c8ctl plugin for modeling BPMN processes from the CLI",
-  "keywords": ["c8ctl", "c8ctl-plugin", "bpmn", "camunda"],
+  "keywords": [
+    "c8ctl",
+    "c8ctl-plugin",
+    "bpmn",
+    "camunda"
+  ],
   "main": "c8ctl-plugin.js",
   "files": [
     "dist/**",
@@ -19,6 +24,8 @@
   "devDependencies": {
     "@camunda8/cli": "*",
     "@types/node": "^22.0.0",
+    "bpmnlint": "^11.12.1",
+    "bpmnlint-plugin-camunda-compat": "^2.52.0",
     "typescript": "^5.0.0"
   },
   "dependencies": {

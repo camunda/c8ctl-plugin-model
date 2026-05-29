@@ -706,7 +706,10 @@ export function updateElementProperty(
         `Unknown zeebe:loopCharacteristics property '${key}'. Supported: ${validKeys.join(', ')}`,
       );
     }
-    const loopChar = getOrCreateZeebeChild(moddle, el, 'zeebe:LoopCharacteristics');
+    if (!el.loopCharacteristics || el.loopCharacteristics.$type !== 'bpmn:MultiInstanceLoopCharacteristics') {
+      throw new Error(`Set 'multi-instance.type' before setting zeebe:loopCharacteristics properties`);
+    }
+    const loopChar = getOrCreateZeebeChild(moddle, el.loopCharacteristics, 'zeebe:LoopCharacteristics');
     loopChar[key] = values[0];
     return;
   }
@@ -743,11 +746,14 @@ export function updateElementProperty(
 
 function extractZeebe(el: ModdleElement): Record<string, unknown> | undefined {
   const values: ModdleElement[] = el.extensionElements?.values ?? [];
-  if (values.length === 0) return undefined;
+  // Also check loopCharacteristics extension elements for zeebe:LoopCharacteristics
+  const loopExtValues: ModdleElement[] = el.loopCharacteristics?.extensionElements?.values ?? [];
+  const allValues = [...values, ...loopExtValues];
+  if (allValues.length === 0) return undefined;
 
   const result: Record<string, unknown> = {};
 
-  for (const v of values) {
+  for (const v of allValues) {
     const type: string = v.$type ?? '';
     if (type === 'zeebe:TaskDefinition') {
       result['taskDefinition'] = { type: v.type, retries: v.retries };
