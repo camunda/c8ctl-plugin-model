@@ -13,14 +13,14 @@ export async function init(args: string[], cwd: string, logger?: CommandLogger):
   if (existsSync(filePath)) {
     throw new Error(`File already exists: ${filePath}`);
   }
-  if (stateExists(cwd)) {
-    throw new Error(`A model is already active in this directory. Run 'c8ctl model reset' first.`);
+  if (stateExists()) {
+    throw new Error(`A model is already active. Run 'c8ctl model reset' first.`);
   }
 
   const moddle = createModdle();
   const definitions = createMinimalBpmn(moddle, name);
   await saveFile(filePath, moddle, definitions);
-  writeState(cwd, { file: filePath, cursor: 'StartEvent_1' });
+  writeState({ file: filePath, cursor: 'StartEvent_1' });
 
   logger?.success(`Created ${name}.bpmn`);
   logger?.info(`Cursor: StartEvent_1`);

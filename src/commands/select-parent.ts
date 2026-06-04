@@ -3,7 +3,7 @@ import { readState, writeState } from '../state.js';
 import type { CommandLogger } from '../logger.js';
 
 export async function selectParent(_args: string[], cwd: string, logger?: CommandLogger): Promise<void> {
-  const state = readState(cwd);
+  const state = readState();
   const { definitions } = await loadFile(state.file);
 
   const process = getProcess(definitions);
@@ -13,6 +13,6 @@ export async function selectParent(_args: string[], cwd: string, logger?: Comman
     throw new Error(`Element '${state.cursor}' has no parent subprocess`);
   }
 
-  writeState(cwd, { ...state, cursor: container.id });
+  writeState({ ...state, cursor: container.id });
   logger?.info(`Cursor: ${container.id}`);
 }

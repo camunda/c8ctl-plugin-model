@@ -10,9 +10,9 @@ test('reset removes state file', async () => {
   const cwd = tmpDir();
   try {
     await setupModel('proc', cwd);
-    assert.ok(stateExists(cwd));
+    assert.ok(stateExists());
     await reset([], cwd);
-    assert.ok(!stateExists(cwd));
+    assert.ok(!stateExists());
   } finally {
     cleanup(cwd);
   }
@@ -43,7 +43,7 @@ test('reset is a no-op when no state exists', async () => {
 test('reset allows re-initializing the directory', async () => {
   const cwd = tmpDir();
   try {
-    writeState(cwd, { file: join(cwd, 'old.bpmn'), cursor: 'StartEvent_1' });
+    writeState({ file: join(cwd, 'old.bpmn'), cursor: 'StartEvent_1' });
     await reset([], cwd);
     // After reset, init should not throw about active model
     const { init } = await import('../commands/init.js');
