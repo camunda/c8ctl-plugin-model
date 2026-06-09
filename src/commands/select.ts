@@ -6,11 +6,11 @@ export async function select(args: string[], cwd: string, logger?: CommandLogger
   const id = args[0];
   if (!id) throw new Error('Usage: c8ctl model select <elementId>');
 
-  const state = readState(cwd);
+  const state = readState();
   const { definitions } = await loadFile(state.file);
   const el = getElementById(definitions, id);
   if (!el) throw new Error(`Element '${id}' not found`);
 
-  writeState(cwd, { ...state, cursor: id });
+  writeState({ ...state, cursor: id });
   logger?.info(`Cursor: ${id} (${el.$type}, name: '${el.name ?? ''}')`);
 }

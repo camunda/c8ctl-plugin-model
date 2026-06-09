@@ -21,14 +21,14 @@ export async function boundaryAppend(args: string[], cwd: string, logger?: Comma
   const label = labelParts.join(' ');
   if (!label) throw new Error('Usage: c8ctl model boundary-append <eventType> <label> [hostElementId]');
 
-  const state = readState(cwd);
+  const state = readState();
   const hostId = hasExplicitHost ? lastArg : state.cursor;
 
   const { moddle, definitions } = await loadFile(state.file);
   const boundaryEvent = addBoundaryEvent(moddle, definitions, eventType, label, hostId);
   await saveFile(state.file, moddle, definitions);
 
-  writeState(cwd, { ...state, cursor: boundaryEvent.id });
+  writeState({ ...state, cursor: boundaryEvent.id });
 
   const interruptingLabel = boundaryEvent.cancelActivity ? 'interrupting' : 'non-interrupting';
   const baseType = eventType.startsWith('non-interrupting-') ? eventType.slice('non-interrupting-'.length) : eventType;

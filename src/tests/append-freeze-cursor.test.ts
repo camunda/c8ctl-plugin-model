@@ -55,10 +55,10 @@ for (const [type, expectedType] of ELEMENT_TYPES) {
     const cwd = tmpDir();
     try {
       await setupModel('proc', cwd);
-      const stateBefore = readState(cwd);
+      const stateBefore = readState();
       await appendFreezeCursor([type, 'My Label'], cwd);
 
-      const stateAfter = readState(cwd);
+      const stateAfter = readState();
       assert.equal(stateAfter.cursor, stateBefore.cursor, 'cursor must not move');
 
       const status = await getStatus(cwd);
@@ -95,7 +95,7 @@ test('append-freeze-cursor with explicit sourceId uses that element', async () =
     await append(['exclusive-gateway', 'Decision'], cwd); // cursor → Gateway_1
     await appendFreezeCursor(['end-event', 'Rejected', 'StartEvent_1'], cwd); // from StartEvent_1, cursor stays at Gateway_1
 
-    const state = readState(cwd);
+    const state = readState();
     assert.equal(state.cursor, 'Gateway_1');
 
     const status = await getStatus(cwd);

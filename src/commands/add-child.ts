@@ -9,7 +9,7 @@ export async function addChild(args: string[], cwd: string, logger?: CommandLogg
   }
 
   const label = rest.join(' ');
-  const state = readState(cwd);
+  const state = readState();
 
   const { moddle, definitions } = await loadFile(state.file);
   const parent = getElementById(definitions, state.cursor);
@@ -21,7 +21,7 @@ export async function addChild(args: string[], cwd: string, logger?: CommandLogg
   const newEl = addChildElement(moddle, definitions, state.cursor, type, label);
   await saveFile(state.file, moddle, definitions);
 
-  writeState(cwd, { ...state, cursor: newEl.id });
+  writeState({ ...state, cursor: newEl.id });
   logger?.success(`Added ${newEl.$type} '${label}' (${newEl.id}) inside ${state.cursor}`);
   logger?.info(`Cursor: ${newEl.id}`);
 }

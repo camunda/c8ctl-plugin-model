@@ -25,7 +25,7 @@ export async function update(args: string[], cwd: string, logger?: CommandLogger
     );
   }
 
-  const state = readState(cwd);
+  const state = readState();
   const resolvedId = targetId ?? state.cursor;
 
   const { moddle, definitions } = await loadFile(state.file);

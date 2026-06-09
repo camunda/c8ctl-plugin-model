@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { loadFile, getProcess, getElementById } from '../bpmn.js';
-import { readState, writeState } from '../state.js';
+import { readState, writeState, stateExists } from '../state.js';
 import type { CommandLogger } from '../logger.js';
 
 export async function selectFile(args: string[], cwd: string, logger?: CommandLogger): Promise<void> {
@@ -16,19 +16,19 @@ export async function selectFile(args: string[], cwd: string, logger?: CommandLo
   const { definitions } = await loadFile(filePath);
   const process = getProcess(definitions);
 
-  const state = readState(cwd);
+  const existingCursor = stateExists() ? readState().cursor : undefined;
 
-  let cursor = state.cursor;
-  if (!getElementById(definitions, cursor)) {
+  let cursor = existingCursor && getElementById(definitions, existingCursor) ? existingCursor : undefined;
+  if (!cursor) {
     const first = (process.flowElements ?? []).find(
       (e: { $type: string }) => e.$type !== 'bpmn:SequenceFlow',
     );
     if (!first) throw new Error(`No elements found in ${filePath}`);
     cursor = first.id as string;
-    logger?.warn(`Cursor '${state.cursor}' not found in new file — reset to ${cursor}`);
+    if (existingCursor) logger?.warn(`Cursor '${existingCursor}' not found in new file — reset to ${cursor}`);
   }
 
-  writeState(cwd, { file: filePath, cursor });
+  writeState({ file: filePath, cursor });
   logger?.info(`File: ${filePath}`);
   logger?.info(`Cursor: ${cursor}`);
 }
