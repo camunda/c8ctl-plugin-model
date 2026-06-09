@@ -21,7 +21,7 @@ function getStatePath(): string {
   return join(dir, 'c8ctl-model.json');
 }
 
-export function readState(): CursorState {
+export function readState(_cwd?: string): CursorState {
   const path = getStatePath();
   if (!existsSync(path)) {
     throw new Error('No model found. Run: c8ctl model init <name>');
