@@ -81,7 +81,7 @@ test('boundary-append moves cursor to new boundary event', async () => {
   try {
     await setupWithTask(cwd);
     await boundaryAppend(['timer', 'Timeout'], cwd);
-    const state = readState(cwd);
+    const state = readState();
     assert.equal(state.cursor, 'BoundaryEvent_1');
   } finally {
     cleanup(cwd);
@@ -101,7 +101,7 @@ test('boundary-append with explicit hostId attaches to specified element', async
     const be = elements.find((e) => e['type'] === 'boundaryEvent');
     assert.equal(be?.['attachedToRef'], 'Activity_1');
     // cursor moves to boundary event regardless
-    const state = readState(cwd);
+    const state = readState();
     assert.equal(state.cursor, 'BoundaryEvent_1');
   } finally {
     cleanup(cwd);

@@ -16,7 +16,7 @@ export async function appendFreezeCursor(args: string[], cwd: string, logger?: C
   const label = labelParts.join(' ');
   if (!label) throw new Error('Usage: c8ctl model append-freeze-cursor <type> <label> [sourceElementId]');
 
-  const state = readState(cwd);
+  const state = readState();
   const sourceId = hasExplicitSource ? lastArg : state.cursor;
 
   const { moddle, definitions } = await loadFile(state.file);

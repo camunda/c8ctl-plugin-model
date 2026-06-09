@@ -9,13 +9,13 @@ export async function create(args: string[], cwd: string, logger?: CommandLogger
   }
 
   const label = rest.join(' ');
-  const state = readState(cwd);
+  const state = readState();
 
   const { moddle, definitions } = await loadFile(state.file);
   const newEl = createElement(moddle, definitions, type, label);
   await saveFile(state.file, moddle, definitions);
 
-  writeState(cwd, { ...state, cursor: newEl.id });
+  writeState({ ...state, cursor: newEl.id });
   logger?.success(`Created ${newEl.$type} '${label}' (${newEl.id})`);
   logger?.info(`Cursor: ${newEl.id}`);
 }

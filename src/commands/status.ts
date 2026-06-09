@@ -3,7 +3,7 @@ import { readState } from '../state.js';
 import type { CommandLogger } from '../logger.js';
 
 export async function status(_args: string[], cwd: string, logger?: CommandLogger): Promise<void> {
-  const state = readState(cwd);
+  const state = readState();
   const { definitions } = await loadFile(state.file);
   const json = toStatusJson(definitions, state.cursor);
   logger?.json(json);

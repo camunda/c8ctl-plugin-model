@@ -9,7 +9,7 @@ export async function createFreezeCursor(args: string[], cwd: string, logger?: C
   }
 
   const label = rest.join(' ');
-  const state = readState(cwd);
+  const state = readState();
 
   const { moddle, definitions } = await loadFile(state.file);
   const newEl = createElement(moddle, definitions, type, label);

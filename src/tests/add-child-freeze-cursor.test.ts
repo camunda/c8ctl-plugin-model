@@ -11,10 +11,10 @@ test('add-child-freeze-cursor adds element without moving cursor', async () => {
     await setupModel('proc', cwd);
     await append(['sub-process', 'My Sub'], cwd); // Activity_1, cursor → Activity_1
 
-    const stateBefore = readState(cwd);
+    const stateBefore = readState();
     await addChildFreezeCursor(['user-task', 'Inner Task'], cwd);
 
-    const stateAfter = readState(cwd);
+    const stateAfter = readState();
     assert.equal(stateAfter.cursor, stateBefore.cursor, 'cursor must not move');
 
     const status = await getStatus(cwd);

@@ -95,7 +95,7 @@ test('append moves cursor to new element', async () => {
   try {
     await setupModel('proc', cwd);
     await append(['user-task', 'Review'], cwd);
-    const state = readState(cwd);
+    const state = readState();
     assert.equal(state.cursor, 'Activity_1');
   } finally {
     cleanup(cwd);
@@ -135,7 +135,7 @@ test('append with explicit sourceId uses that element as source', async () => {
     assert.ok(flow, 'explicit source flow should exist');
 
     // cursor moved to EndEvent_1 (explicit source does not freeze cursor)
-    const state = readState(cwd);
+    const state = readState();
     assert.equal(state.cursor, 'EndEvent_1');
   } finally {
     cleanup(cwd);
@@ -227,7 +227,7 @@ test('append multiple typed events get unique EventDefinition IDs', async () => 
 
     const { loadFile, getProcess: gp } = await import('../bpmn.js');
     const { readState } = await import('../state.js');
-    const state = readState(cwd);
+    const state = readState();
     const { definitions } = await loadFile(state.file);
     const process = gp(definitions);
     const defs = (process.flowElements as Array<Record<string, unknown>>)

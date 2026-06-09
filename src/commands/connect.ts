@@ -9,13 +9,13 @@ export async function connect(args: string[], cwd: string, logger?: CommandLogge
   }
 
   const conditionExpression = conditionParts.length > 0 ? conditionParts.join(' ') : undefined;
-  const state = readState(cwd);
+  const state = readState();
 
   const { moddle, definitions } = await loadFile(state.file);
   connectElements(moddle, definitions, sourceId, targetId, conditionExpression);
   await saveFile(state.file, moddle, definitions);
 
-  writeState(cwd, { ...state, cursor: targetId });
+  writeState({ ...state, cursor: targetId });
   logger?.success(`Connected ${sourceId} → ${targetId}${conditionExpression ? ` [${conditionExpression}]` : ''}`);
   logger?.info(`Cursor: ${targetId}`);
 }
