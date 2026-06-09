@@ -35,7 +35,7 @@ export async function update(args: string[], cwd: string, logger?: CommandLogger
     renameElementId(definitions, el, newId);
     await saveFile(state.file, moddle, definitions);
     const newState = state.cursor === resolvedId ? { ...state, cursor: newId } : state;
-    writeState(cwd, newState);
+    writeState(newState);
     logger?.success(`Renamed ID '${resolvedId}' to '${newId}'`);
     logger?.info(`Cursor: ${newState.cursor}`);
   } else {
