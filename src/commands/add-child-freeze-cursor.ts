@@ -9,7 +9,7 @@ export async function addChildFreezeCursor(args: string[], cwd: string, logger?:
   }
 
   const label = rest.join(' ');
-  const state = readState(cwd);
+  const state = readState();
 
   const { moddle, definitions } = await loadFile(state.file);
   const parent = getElementById(definitions, state.cursor);

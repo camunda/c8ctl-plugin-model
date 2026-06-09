@@ -7,7 +7,7 @@ import { readState } from '../state.js';
 import { tmpDir, cleanup, setupModel } from './helpers.js';
 
 async function getCursorStatus(cwd: string): Promise<Record<string, unknown>> {
-  const state = readState(cwd);
+  const state = readState();
   const { definitions } = await loadFile(state.file);
   const { getElementById } = await import('../bpmn.js');
   const el = getElementById(definitions, state.cursor);

@@ -44,3 +44,10 @@ Build and maintain a plugin that exposes a `model` command for building BPMN pro
 - Make the smallest change required for each task.
 - Do not add unrelated commands or refactors.
 - Keep `metadata.commands` descriptions concise and user-facing.
+
+## Structural Invariants
+
+- **"Always green" CI policy**: every PR must pass all checks before merging.  Broken builds block all other work.
+- **Warnings are fatal**: do not suppress or ignore a warning to make a build pass.  Fix the root cause instead.
+- **No silent failures**: do not treat any failure as pre-existing or unrelated without explicit confirmation from the engineer.
+- **On every change**: verify that all tests pass (`npm test`) and the build succeeds (`npm run build`) with zero errors and zero warnings.
