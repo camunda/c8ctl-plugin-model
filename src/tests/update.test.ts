@@ -1088,3 +1088,298 @@ test('update timer.timeDate throws on non-timer element', async () => {
     cleanup(cwd);
   }
 });
+
+test('update timer.timeDuration serializes xsi:type="bpmn:tFormalExpression" in XML', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithTimerBoundary(cwd);
+    await update(['timer.timeDuration', 'PT1H'], cwd);
+
+    const { readState } = await import('../state.js');
+    const { readFileSync } = await import('node:fs');
+    const state = readState(cwd);
+    const xml = readFileSync(state.file, 'utf-8');
+    assert.ok(xml.includes('xsi:type="bpmn:tFormalExpression"'), 'XML must include xsi:type="bpmn:tFormalExpression"');
+    assert.ok(xml.includes('<bpmn:timeDuration'), 'XML must include <bpmn:timeDuration>');
+    assert.ok(xml.includes('PT1H'), 'XML must include the expression value');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update timer.timeCycle serializes xsi:type="bpmn:tFormalExpression" in XML', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithTimerBoundary(cwd);
+    await update(['timer.timeCycle', 'R/PT30M'], cwd);
+
+    const { readState } = await import('../state.js');
+    const { readFileSync } = await import('node:fs');
+    const state = readState(cwd);
+    const xml = readFileSync(state.file, 'utf-8');
+    assert.ok(xml.includes('<bpmn:timeCycle'), 'XML must include <bpmn:timeCycle>');
+    assert.ok(xml.includes('xsi:type="bpmn:tFormalExpression"'), 'XML must include xsi:type="bpmn:tFormalExpression"');
+    assert.ok(xml.includes('R/PT30M'), 'XML must include the expression value');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update timer.timeDate serializes xsi:type="bpmn:tFormalExpression" in XML', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithTimerBoundary(cwd);
+    await update(['timer.timeDate', '2025-12-31T23:59:59Z'], cwd);
+
+    const { readState } = await import('../state.js');
+    const { readFileSync } = await import('node:fs');
+    const state = readState(cwd);
+    const xml = readFileSync(state.file, 'utf-8');
+    assert.ok(xml.includes('<bpmn:timeDate'), 'XML must include <bpmn:timeDate>');
+    assert.ok(xml.includes('xsi:type="bpmn:tFormalExpression"'), 'XML must include xsi:type="bpmn:tFormalExpression"');
+    assert.ok(xml.includes('2025-12-31T23:59:59Z'), 'XML must include the expression value');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update timer.timeDuration serializes previous element removed from XML on overwrite', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithTimerBoundary(cwd);
+    await update(['timer.timeCycle', 'R/PT1H'], cwd);
+    await update(['timer.timeDuration', 'PT2H'], cwd);
+
+    const { readState } = await import('../state.js');
+    const { readFileSync } = await import('node:fs');
+    const state = readState(cwd);
+    const xml = readFileSync(state.file, 'utf-8');
+    assert.ok(xml.includes('<bpmn:timeDuration'), 'XML must include <bpmn:timeDuration>');
+    assert.ok(!xml.includes('<bpmn:timeCycle'), 'XML must not include <bpmn:timeCycle> after overwrite');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update timer.timeCycle on timer-start-event', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupModel('proc', cwd);
+    await create(['timer-start-event', 'Scheduled Start'], cwd); // StartEvent_2
+
+    await update(['timer.timeCycle', 'R3/PT1H'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['id'] === 'StartEvent_2');
+    const timer = el?.['timer'] as Record<string, unknown>;
+    assert.equal(timer?.['timeCycle'], 'R3/PT1H');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update timer.timeDate on timer-start-event', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupModel('proc', cwd);
+    await create(['timer-start-event', 'Scheduled Start'], cwd); // StartEvent_2
+
+    await update(['timer.timeDate', '2026-01-01T00:00:00Z'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['id'] === 'StartEvent_2');
+    const timer = el?.['timer'] as Record<string, unknown>;
+    assert.equal(timer?.['timeDate'], '2026-01-01T00:00:00Z');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update timer.timeCycle on timer-intermediate-catch-event', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupModel('proc', cwd);
+    await append(['timer-intermediate-catch-event', 'Wait'], cwd); // Event_1
+
+    await update(['timer.timeCycle', '0 9 * * MON-FRI'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['id'] === 'Event_1');
+    const timer = el?.['timer'] as Record<string, unknown>;
+    assert.equal(timer?.['timeCycle'], '0 9 * * MON-FRI');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update timer.timeDate on timer-intermediate-catch-event', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupModel('proc', cwd);
+    await append(['timer-intermediate-catch-event', 'Wait'], cwd); // Event_1
+
+    await update(['timer.timeDate', '2025-06-15T08:00:00Z'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['id'] === 'Event_1');
+    const timer = el?.['timer'] as Record<string, unknown>;
+    assert.equal(timer?.['timeDate'], '2025-06-15T08:00:00Z');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update timer.timeDuration on non-interrupting timer boundary event', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupModel('proc', cwd);
+    await append(['user-task', 'Review'], cwd); // Activity_1
+    await boundaryAppend(['non-interrupting-timer', 'Escalate'], cwd); // BoundaryEvent_1
+
+    await update(['timer.timeDuration', 'PT2H'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['id'] === 'BoundaryEvent_1');
+    const timer = el?.['timer'] as Record<string, unknown>;
+    assert.equal(timer?.['timeDuration'], 'PT2H');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update timer.timeDuration with explicit elementId targeting', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupModel('proc', cwd);
+    await append(['user-task', 'Review'], cwd); // Activity_1
+    await boundaryAppend(['timer', 'Timeout'], cwd); // BoundaryEvent_1, cursor → BoundaryEvent_1
+    await append(['user-task', 'Approve'], cwd); // Activity_2, cursor → Activity_2
+
+    await update(['BoundaryEvent_1', 'timer.timeDuration', 'PT30M'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['id'] === 'BoundaryEvent_1');
+    const timer = el?.['timer'] as Record<string, unknown>;
+    assert.equal(timer?.['timeDuration'], 'PT30M');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update timer property mutual exclusion: timeCycle clears timeDate', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithTimerBoundary(cwd);
+    await update(['timer.timeDate', '2025-12-31T23:59:59Z'], cwd);
+    await update(['timer.timeCycle', 'R/PT1H'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['id'] === 'BoundaryEvent_1');
+    const timer = el?.['timer'] as Record<string, unknown>;
+    assert.equal(timer?.['timeCycle'], 'R/PT1H');
+    assert.equal(timer?.['timeDate'], undefined);
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update timer property mutual exclusion: timeDate clears timeDuration', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithTimerBoundary(cwd);
+    await update(['timer.timeDuration', 'PT4H'], cwd);
+    await update(['timer.timeDate', '2026-03-01T12:00:00Z'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['id'] === 'BoundaryEvent_1');
+    const timer = el?.['timer'] as Record<string, unknown>;
+    assert.equal(timer?.['timeDate'], '2026-03-01T12:00:00Z');
+    assert.equal(timer?.['timeDuration'], undefined);
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update timer.timeCycle with FEEL expression', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupModel('proc', cwd);
+    await create(['timer-start-event', 'Scheduled'], cwd);
+
+    await update(['timer.timeCycle', '=cycle(duration("PT1H"))'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['id'] === 'StartEvent_2');
+    const timer = el?.['timer'] as Record<string, unknown>;
+    assert.equal(timer?.['timeCycle'], '=cycle(duration("PT1H"))');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update timer.timeDate with FEEL expression', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithTimerBoundary(cwd);
+    await update(['timer.timeDate', '=date and time("2026-01-01T00:00:00Z")'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['id'] === 'BoundaryEvent_1');
+    const timer = el?.['timer'] as Record<string, unknown>;
+    assert.equal(timer?.['timeDate'], '=date and time("2026-01-01T00:00:00Z")');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update timer.timeDuration throws on message boundary event', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupModel('proc', cwd);
+    await append(['user-task', 'Review'], cwd); // Activity_1
+    await boundaryAppend(['message', 'Msg'], cwd); // BoundaryEvent_1 (message, not timer)
+
+    await assert.rejects(
+      () => update(['timer.timeDuration', 'PT1H'], cwd),
+      /bpmn:timerEventDefinition/,
+    );
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update timer.timeDuration throws on error boundary event', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupModel('proc', cwd);
+    await append(['user-task', 'Review'], cwd); // Activity_1
+    await boundaryAppend(['error', 'Err'], cwd); // BoundaryEvent_1 (error, not timer)
+
+    await assert.rejects(
+      () => update(['timer.timeDuration', 'PT1H'], cwd),
+      /bpmn:timerEventDefinition/,
+    );
+  } finally {
+    cleanup(cwd);
+  }
+});
