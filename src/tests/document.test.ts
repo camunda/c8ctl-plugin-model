@@ -145,3 +145,68 @@ test('document clears textFormat when updating without --format', async () => {
     cleanup(cwd);
   }
 });
+
+test('document omits text/plain textFormat from status output', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupModel('proc', cwd);
+
+    await document(['Some text', '--format', 'text/plain'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const startEvent = elements.find((e) => e['id'] === 'StartEvent_1');
+    assert.ok(startEvent, 'start event should exist');
+    const doc = startEvent['documentation'] as Record<string, unknown>;
+    assert.ok(doc, 'documentation should be set');
+    assert.equal(doc['text'], 'Some text');
+    assert.equal(doc['textFormat'], undefined, 'text/plain textFormat should be omitted from status output');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('document accepts --format flag before text argument', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupModel('proc', cwd);
+
+    await document(['--format', 'text/markdown', '**Bold**'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const startEvent = elements.find((e) => e['id'] === 'StartEvent_1');
+    assert.ok(startEvent, 'start event should exist');
+    const doc = startEvent['documentation'] as Record<string, unknown>;
+    assert.ok(doc, 'documentation should be set');
+    assert.equal(doc['text'], '**Bold**');
+    assert.equal(doc['textFormat'], 'text/markdown');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('document sets documentation on a non-start-event element via cursor', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupModel('proc', cwd);
+    await append(['user-task', 'Review'], cwd);
+    const state = readState(cwd);
+    const userTaskId = state.cursor;
+
+    await document(['Complete within SLA'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const userTask = elements.find((e) => e['id'] === userTaskId);
+    assert.ok(userTask, 'user task should exist');
+    const doc = userTask['documentation'] as Record<string, unknown>;
+    assert.ok(doc, 'documentation should be set on user task');
+    assert.equal(doc['text'], 'Complete within SLA');
+  } finally {
+    cleanup(cwd);
+  }
+});
