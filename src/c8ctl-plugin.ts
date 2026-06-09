@@ -16,6 +16,7 @@ import { boundaryAppend } from './commands/boundary-append.js';
 import { cursorStatus } from './commands/cursor-status.js';
 import { selectFile } from './commands/select-file.js';
 import { annotate } from './commands/annotate.js';
+import { document } from './commands/document.js';
 
 const c8ctl = globalThis.c8ctl as C8ctlPluginRuntime;
 
@@ -37,6 +38,7 @@ export const metadata = {
         { name: 'select-parent', description: 'Move the cursor to the parent sub-process of the active element' },
         { name: 'boundary-append', description: 'Attach a boundary event to an activity; cursor moves to new event' },
         { name: 'annotate', description: 'Add a text annotation artifact to an element' },
+        { name: 'document', description: 'Set the bpmn:documentation docstring on an element' },
         { name: 'update', description: 'Update a BPMN or Zeebe property on the cursor element' },
         { name: 'select', description: 'Move the cursor to a specific element by ID' },
         { name: 'status', description: 'Print a compact JSON view of the semantic model' },
@@ -58,6 +60,8 @@ export const metadata = {
         { command: 'c8ctl model boundary-append timer Timeout', description: 'Add interrupting timer boundary to cursor element' },
         { command: 'c8ctl model boundary-append non-interrupting-message Escalation Activity_1', description: 'Add non-interrupting message boundary to Activity_1' },
         { command: 'c8ctl model annotate "Must complete within 24h" Activity_1', description: 'Add text annotation to Activity_1' },
+        { command: 'c8ctl model document "Reviewer must approve within 24h" Activity_1', description: 'Set bpmn:documentation on Activity_1' },
+        { command: 'c8ctl model document --format text/markdown "**Important**" Activity_1', description: 'Set markdown documentation on Activity_1' },
         { command: 'c8ctl model update zeebe:taskDefinition.type my-job-type', description: 'Set Zeebe job type on cursor element' },
         { command: 'c8ctl model update Activity_2 name "Send Approval"', description: 'Rename a specific element' },
         { command: 'c8ctl model update zeebe:input "=vars.x" localX', description: 'Add input mapping to cursor element' },
@@ -130,6 +134,9 @@ export const commands = {
         case 'annotate':
           await annotate(rest, cwd, logger);
           break;
+        case 'document':
+          await document(rest, cwd, logger);
+          break;
         default:
           printHelp(logger);
       }
@@ -168,6 +175,8 @@ Subcommands:
     [hostElementId]                   Attach to specific element instead of cursor
                                       Cursor always moves to the new boundary event
   annotate <text> [elementId]         Add text annotation to cursor element (or elementId)
+  document <text> [elementId]         Set bpmn:documentation on cursor element (or elementId)
+    [--format <mime>]                 Optional textFormat attribute (e.g. text/markdown)
 
 Boundary event types:
   timer, error, message, signal, escalation, compensation, conditional, cancel

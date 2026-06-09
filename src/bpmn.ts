@@ -559,6 +559,33 @@ export function addTextAnnotation(
   return annotation;
 }
 
+export function setDocumentation(
+  moddle: BpmnModdle,
+  definitions: ModdleElement,
+  text: string,
+  elementId: string,
+  textFormat?: string,
+): void {
+  const target = getElementById(definitions, elementId);
+  if (!target) throw new Error(`Element '${elementId}' not found`);
+
+  const existing: ModdleElement[] = target.documentation ?? [];
+  if (existing.length > 0) {
+    existing[0].text = text;
+    // Explicitly set or clear textFormat so the result is idempotent
+    if (textFormat !== undefined) {
+      existing[0].textFormat = textFormat;
+    } else {
+      delete existing[0].textFormat;
+    }
+  } else {
+    const props: Record<string, unknown> = { text };
+    if (textFormat !== undefined) props['textFormat'] = textFormat;
+    const docElement = moddle.create('bpmn:Documentation', props);
+    target.documentation = [docElement];
+  }
+}
+
 function getOrCreateExtensionElements(moddle: BpmnModdle, el: ModdleElement): ModdleElement {
   if (!el.extensionElements) {
     el.extensionElements = moddle.create('bpmn:ExtensionElements', { values: [] });
@@ -827,6 +854,17 @@ function toElementJson(e: ModdleElement): Record<string, unknown> {
     const { elements: children, flows: childFlows } = toContainerJson(e);
     entry['children'] = children;
     entry['childFlows'] = childFlows;
+  }
+  const docs: ModdleElement[] = e.documentation ?? [];
+  if (docs.length > 0) {
+    const doc = docs[0];
+    const docEntry: Record<string, unknown> = { text: doc.text };
+    // Omit textFormat when it is the BPMN-spec default ('text/plain') to keep
+    // the status output concise; only non-default values are meaningful here.
+    if (doc.textFormat !== undefined && doc.textFormat !== 'text/plain') {
+      docEntry['textFormat'] = doc.textFormat;
+    }
+    entry['documentation'] = docEntry;
   }
   return entry;
 }
