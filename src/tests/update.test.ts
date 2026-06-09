@@ -1043,6 +1043,86 @@ test('update zeebe:adHoc.outputCollection throws on non-ad-hoc element', async (
   }
 });
 
+test('update zeebe:adHoc.outputElement throws on non-ad-hoc element', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithTask(cwd);
+    await assert.rejects(() => update(['zeebe:adHoc.outputElement', '=result'], cwd), /ad-hoc sub-process/);
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update zeebe:adHoc.activeElementsCollection throws on non-ad-hoc element', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithTask(cwd);
+    await assert.rejects(() => update(['zeebe:adHoc.activeElementsCollection', '=tools'], cwd), /ad-hoc sub-process/);
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update zeebe:adHoc.outputElement updates existing value', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithAdHoc(cwd);
+    await update(['zeebe:adHoc.outputElement', '={id: a}'], cwd);
+    await update(['zeebe:adHoc.outputElement', '={id: b}'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['id'] === 'Activity_1');
+    const zeebe = el?.['zeebe'] as Record<string, unknown>;
+    const adHoc = zeebe?.['adHoc'] as Record<string, unknown>;
+    assert.equal(adHoc?.['outputElement'], '={id: b}');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update zeebe:adHoc.activeElementsCollection updates existing value', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithAdHoc(cwd);
+    await update(['zeebe:adHoc.activeElementsCollection', '=toolsA'], cwd);
+    await update(['zeebe:adHoc.activeElementsCollection', '=toolsB'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['id'] === 'Activity_1');
+    const zeebe = el?.['zeebe'] as Record<string, unknown>;
+    const adHoc = zeebe?.['adHoc'] as Record<string, unknown>;
+    assert.equal(adHoc?.['activeElementsCollection'], '=toolsB');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update zeebe:adHoc all three properties share one zeebe:AdHoc element', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithAdHoc(cwd);
+    await update(['zeebe:adHoc.outputCollection', 'toolCallResults'], cwd);
+    await update(['zeebe:adHoc.outputElement', '={id: toolCall.id}'], cwd);
+    await update(['zeebe:adHoc.activeElementsCollection', '=activeTools'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['id'] === 'Activity_1');
+    const zeebe = el?.['zeebe'] as Record<string, unknown>;
+    const adHoc = zeebe?.['adHoc'] as Record<string, unknown>;
+    assert.equal(adHoc?.['outputCollection'], 'toolCallResults');
+    assert.equal(adHoc?.['outputElement'], '={id: toolCall.id}');
+    assert.equal(adHoc?.['activeElementsCollection'], '=activeTools');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
 test('update zeebe:adHoc unknown key throws', async () => {
   const cwd = tmpDir();
   try {
