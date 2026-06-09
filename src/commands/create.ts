@@ -11,7 +11,7 @@ export async function create(args: string[], cwd: string, logger?: CommandLogger
   }
 
   const label = rest.join(' ');
-  const state = readState(cwd);
+  const state = readState();
 
   const { moddle, definitions } = await loadFile(state.file);
   const newEl = createElement(moddle, definitions, type, label);
@@ -21,7 +21,7 @@ export async function create(args: string[], cwd: string, logger?: CommandLogger
   await saveFile(state.file, moddle, definitions);
 
   const finalId = customId ?? newEl.id;
-  writeState(cwd, { ...state, cursor: finalId });
+  writeState({ ...state, cursor: finalId });
   logger?.success(`Created ${newEl.$type} '${label}' (${finalId})`);
   logger?.info(`Cursor: ${finalId}`);
 }

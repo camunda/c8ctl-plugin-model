@@ -20,7 +20,7 @@ test('init sets cursor to StartEvent_1', async () => {
   const cwd = tmpDir();
   try {
     await init(['my-process'], cwd);
-    const state = readState(cwd);
+    const state = readState();
     assert.equal(state.cursor, 'StartEvent_1');
   } finally {
     cleanup(cwd);
@@ -31,7 +31,7 @@ test('init stores absolute file path in state', async () => {
   const cwd = tmpDir();
   try {
     await init(['my-process'], cwd);
-    const state = readState(cwd);
+    const state = readState();
     assert.ok(state.file.endsWith('my-process.bpmn'));
     assert.ok(state.file.startsWith('/'));
   } finally {
@@ -55,7 +55,7 @@ test('init throws if .bpmn file already exists', async () => {
 test('init throws if state already active in directory', async () => {
   const cwd = tmpDir();
   try {
-    writeState(cwd, { file: join(cwd, 'other.bpmn'), cursor: 'StartEvent_1' });
+    writeState({ file: join(cwd, 'other.bpmn'), cursor: 'StartEvent_1' });
     await assert.rejects(
       () => init(['new-process'], cwd),
       /already active/,

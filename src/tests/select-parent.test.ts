@@ -14,7 +14,7 @@ test('select-parent moves cursor from child to parent subprocess', async () => {
     await addChild(['user-task', 'Inner Task'], cwd); // Activity_2, cursor → Activity_2
 
     await selectParent([], cwd);
-    const state = readState(cwd);
+    const state = readState();
     assert.equal(state.cursor, 'Activity_1');
   } finally {
     cleanup(cwd);
@@ -40,7 +40,7 @@ test('select-parent enables appending at parent scope after navigating inside', 
     await selectParent([], cwd); // cursor → Activity_1
     await append(['end-event', 'End'], cwd); // EndEvent_1 at top level
 
-    const state = readState(cwd);
+    const state = readState();
     assert.equal(state.cursor, 'EndEvent_1');
   } finally {
     cleanup(cwd);

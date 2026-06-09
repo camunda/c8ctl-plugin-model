@@ -19,7 +19,7 @@ export async function append(args: string[], cwd: string, logger?: CommandLogger
   const label = labelParts.join(' ');
   if (!label) throw new Error('Usage: c8ctl model append <type> <label> [sourceElementId] [--id <id>]');
 
-  const state = readState(cwd);
+  const state = readState();
   const sourceId = hasExplicitSource ? lastArg : state.cursor;
 
   const { moddle, definitions } = await loadFile(state.file);
@@ -34,7 +34,7 @@ export async function append(args: string[], cwd: string, logger?: CommandLogger
   await saveFile(state.file, moddle, definitions);
 
   const finalId = customId ?? newEl.id;
-  writeState(cwd, { ...state, cursor: finalId });
+  writeState({ ...state, cursor: finalId });
   logger?.success(`Appended ${newEl.$type} '${label}' (${finalId})`);
   logger?.info(`Cursor: ${finalId}`);
 }

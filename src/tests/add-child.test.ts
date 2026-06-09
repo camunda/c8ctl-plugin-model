@@ -12,7 +12,7 @@ test('add-child adds element inside subprocess and moves cursor', async () => {
     await append(['sub-process', 'My Sub'], cwd); // Activity_1, cursor → Activity_1
     await addChild(['user-task', 'Inner Task'], cwd); // Activity_2, cursor → Activity_2
 
-    const state = readState(cwd);
+    const state = readState();
     assert.equal(state.cursor, 'Activity_2');
 
     const status = await getStatus(cwd);
@@ -45,7 +45,7 @@ test('append after add-child chains inside subprocess', async () => {
     await addChild(['start-event', 'Inner Start'], cwd); // StartEvent_2, cursor → StartEvent_2
     await append(['end-event', 'Inner End'], cwd); // EndEvent_1, cursor → EndEvent_1
 
-    const state = readState(cwd);
+    const state = readState();
     assert.equal(state.cursor, 'EndEvent_1');
 
     const status = await getStatus(cwd);

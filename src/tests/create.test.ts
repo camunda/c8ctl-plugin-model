@@ -11,7 +11,7 @@ test('create adds standalone element with no incoming flow', async () => {
     await setupModel('proc', cwd);
     await create(['user-task', 'Standalone Task'], cwd);
 
-    const state = readState(cwd);
+    const state = readState();
     assert.equal(state.cursor, 'Activity_1');
 
     const status = await getStatus(cwd);
@@ -51,7 +51,7 @@ test('create moves cursor to new element', async () => {
     await setupModel('proc', cwd);
     await create(['end-event', 'Orphan End'], cwd);
 
-    const state = readState(cwd);
+    const state = readState();
     assert.equal(state.cursor, 'EndEvent_1');
   } finally {
     cleanup(cwd);
@@ -91,10 +91,10 @@ test('create-freeze-cursor adds element without moving cursor', async () => {
   const cwd = tmpDir();
   try {
     await setupModel('proc', cwd);
-    const stateBefore = readState(cwd);
+    const stateBefore = readState();
     await createFreezeCursor(['end-event', 'Orphan End'], cwd);
 
-    const stateAfter = readState(cwd);
+    const stateAfter = readState();
     assert.equal(stateAfter.cursor, stateBefore.cursor, 'cursor must not move');
 
     const status = await getStatus(cwd);

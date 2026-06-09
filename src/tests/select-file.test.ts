@@ -18,7 +18,7 @@ test('select-file switches to another .bpmn file', async () => {
 
     // Active file is proc-b; switch to proc-a.
     await selectFile(['proc-a'], cwd);
-    const state = readState(cwd);
+    const state = readState();
     assert.ok(state.file.endsWith('proc-a.bpmn'));
   } finally {
     cleanup(cwd);
@@ -34,7 +34,7 @@ test('select-file accepts path with .bpmn extension', async () => {
     await setupModel('proc-b', cwd);
 
     await selectFile(['proc-a.bpmn'], cwd);
-    const state = readState(cwd);
+    const state = readState();
     assert.ok(state.file.endsWith('proc-a.bpmn'));
   } finally {
     cleanup(cwd);
@@ -52,7 +52,7 @@ test('select-file preserves cursor when element exists in new file', async () =>
 
     // cursor is StartEvent_1 in proc-b; switch to proc-a which also has StartEvent_1
     await selectFile(['proc-a'], cwd);
-    const state = readState(cwd);
+    const state = readState();
     assert.equal(state.cursor, 'StartEvent_1');
   } finally {
     cleanup(cwd);
@@ -75,11 +75,11 @@ test('select-file resets cursor to first element when cursor not in new file', a
     // That doesn't hit the reset path. We need proc-b cursor to be an ID missing from proc-a.
     // Manually set cursor to something that won't exist in proc-a.
     const { writeState } = await import('../state.js');
-    const state = readState(cwd);
-    writeState(cwd, { ...state, cursor: 'Activity_99' });
+    const state = readState();
+    writeState({ ...state, cursor: 'Activity_99' });
 
     await selectFile(['proc-b'], cwd); // proc-b has no Activity_99
-    const after = readState(cwd);
+    const after = readState();
     assert.equal(after.cursor, 'StartEvent_1'); // reset to first element
     assert.ok(after.file.endsWith('proc-b.bpmn'));
   } finally {
@@ -110,18 +110,17 @@ test('select-file throws without argument', async () => {
   }
 });
 
-test('select-file throws when no model state exists', async () => {
+test('select-file succeeds when no model state exists and sets cursor to first element', async () => {
   const cwd = tmpDir();
   try {
-    // Need a file to exist but no state
     await setupModel('proc', cwd);
     const { reset } = await import('../commands/reset.js');
     await reset([], cwd);
 
-    await assert.rejects(
-      () => selectFile(['proc'], cwd),
-      /No model found/,
-    );
+    await selectFile(['proc'], cwd);
+    const state = readState();
+    assert.ok(state.file.endsWith('proc.bpmn'));
+    assert.ok(state.cursor.length > 0);
   } finally {
     cleanup(cwd);
   }
@@ -137,7 +136,7 @@ test('select-file accepts an absolute path', async () => {
 
     const absPath = join(cwd, 'proc-a.bpmn');
     await selectFile([absPath], cwd);
-    const state = readState(cwd);
+    const state = readState();
     assert.equal(state.file, absPath);
   } finally {
     cleanup(cwd);

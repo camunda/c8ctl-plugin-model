@@ -21,7 +21,7 @@ export async function boundaryAppend(args: string[], cwd: string, logger?: Comma
   const label = labelParts.join(' ');
   if (!label) throw new Error('Usage: c8ctl model boundary-append <eventType> <label> [hostElementId] [--id <id>]');
 
-  const state = readState(cwd);
+  const state = readState();
   const hostId = hasExplicitHost ? lastArg : state.cursor;
 
   const { moddle, definitions } = await loadFile(state.file);
@@ -32,7 +32,7 @@ export async function boundaryAppend(args: string[], cwd: string, logger?: Comma
   await saveFile(state.file, moddle, definitions);
 
   const finalId = customId ?? boundaryEvent.id;
-  writeState(cwd, { ...state, cursor: finalId });
+  writeState({ ...state, cursor: finalId });
 
   const interruptingLabel = boundaryEvent.cancelActivity ? 'interrupting' : 'non-interrupting';
   const baseType = eventType.startsWith('non-interrupting-') ? eventType.slice('non-interrupting-'.length) : eventType;

@@ -11,7 +11,7 @@ export async function addChild(args: string[], cwd: string, logger?: CommandLogg
   }
 
   const label = rest.join(' ');
-  const state = readState(cwd);
+  const state = readState();
 
   const { moddle, definitions } = await loadFile(state.file);
   const parent = getElementById(definitions, state.cursor);
@@ -27,7 +27,7 @@ export async function addChild(args: string[], cwd: string, logger?: CommandLogg
   await saveFile(state.file, moddle, definitions);
 
   const finalId = customId ?? newEl.id;
-  writeState(cwd, { ...state, cursor: finalId });
+  writeState({ ...state, cursor: finalId });
   logger?.success(`Added ${newEl.$type} '${label}' (${finalId}) inside ${state.cursor}`);
   logger?.info(`Cursor: ${finalId}`);
 }

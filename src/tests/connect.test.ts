@@ -32,7 +32,7 @@ test('connect moves cursor to target', async () => {
     await create(['end-event', 'End'], cwd); // cursor → EndEvent_1
     await connect(['StartEvent_1', 'EndEvent_1'], cwd);
 
-    const state = readState(cwd);
+    const state = readState();
     assert.equal(state.cursor, 'EndEvent_1');
   } finally {
     cleanup(cwd);
