@@ -96,3 +96,23 @@ test('add-child throws without required arguments', async () => {
     cleanup(cwd);
   }
 });
+
+test('add-child user-task emits zeebe:UserTask marker', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupModel('proc', cwd);
+    await append(['sub-process', 'My Sub'], cwd); // Activity_1
+    await addChild(['user-task', 'Inner Task'], cwd); // Activity_2
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const sub = elements.find((e) => e['id'] === 'Activity_1');
+    const children = sub?.['children'] as Array<Record<string, unknown>>;
+    const innerTask = children?.find((c) => c['id'] === 'Activity_2');
+    const zeebe = innerTask?.['zeebe'] as Record<string, unknown>;
+    assert.equal(zeebe?.['userTask'], true, 'zeebe:UserTask marker should be present on add-child user-task');
+  } finally {
+    cleanup(cwd);
+  }
+});

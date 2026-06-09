@@ -245,6 +245,14 @@ function idPrefix(bpmnType: string): string {
   return 'Activity';
 }
 
+function addZeebeUserTaskMarker(moddle: BpmnModdle, el: ModdleElement): void {
+  const ext = getOrCreateExtensionElements(moddle, el);
+  const existing = (ext.values ?? []).find((v: ModdleElement) => v.$type === 'zeebe:UserTask');
+  if (!existing) {
+    ext.values = [...(ext.values ?? []), moddle.create('zeebe:UserTask', {})];
+  }
+}
+
 export function addElement(
   moddle: BpmnModdle,
   definitions: ModdleElement,
@@ -262,6 +270,7 @@ export function addElement(
     elProps.eventDefinitions = [moddle.create(defType, { id: nextEventDefId(process) })];
   }
   const newEl = moddle.create(bpmnType, elProps);
+  if (bpmnType === 'bpmn:UserTask') addZeebeUserTaskMarker(moddle, newEl);
 
   const source = getElementById(definitions, sourceId);
   if (!source) throw new Error(`Source element '${sourceId}' not found`);
@@ -320,6 +329,7 @@ export function addChildElement(
     elProps.eventDefinitions = [moddle.create(defType, { id: nextEventDefId(process) })];
   }
   const newEl = moddle.create(bpmnType, elProps);
+  if (bpmnType === 'bpmn:UserTask') addZeebeUserTaskMarker(moddle, newEl);
 
   parent.flowElements = [...(parent.flowElements ?? []), newEl];
 
@@ -352,6 +362,7 @@ export function createElement(
     elProps.eventDefinitions = [moddle.create(defType, { id: nextEventDefId(process) })];
   }
   const newEl = moddle.create(bpmnType, elProps);
+  if (bpmnType === 'bpmn:UserTask') addZeebeUserTaskMarker(moddle, newEl);
 
   process.flowElements = [...(process.flowElements ?? []), newEl];
 
@@ -559,6 +570,33 @@ export function addTextAnnotation(
   return annotation;
 }
 
+export function setDocumentation(
+  moddle: BpmnModdle,
+  definitions: ModdleElement,
+  text: string,
+  elementId: string,
+  textFormat?: string,
+): void {
+  const target = getElementById(definitions, elementId);
+  if (!target) throw new Error(`Element '${elementId}' not found`);
+
+  const existing: ModdleElement[] = target.documentation ?? [];
+  if (existing.length > 0) {
+    existing[0].text = text;
+    // Explicitly set or clear textFormat so the result is idempotent
+    if (textFormat !== undefined) {
+      existing[0].textFormat = textFormat;
+    } else {
+      delete existing[0].textFormat;
+    }
+  } else {
+    const props: Record<string, unknown> = { text };
+    if (textFormat !== undefined) props['textFormat'] = textFormat;
+    const docElement = moddle.create('bpmn:Documentation', props);
+    target.documentation = [docElement];
+  }
+}
+
 function getOrCreateExtensionElements(moddle: BpmnModdle, el: ModdleElement): ModdleElement {
   if (!el.extensionElements) {
     el.extensionElements = moddle.create('bpmn:ExtensionElements', { values: [] });
@@ -714,6 +752,23 @@ export function updateElementProperty(
     return;
   }
 
+  if (prop === 'zeebe:userTask.disabled') {
+    if (el.$type !== 'bpmn:UserTask') {
+      throw new Error(`'zeebe:userTask.disabled' can only be set on user-task`);
+    }
+    const disabled = values[0] !== 'false';
+    if (disabled) {
+      if (el.extensionElements) {
+        el.extensionElements.values = (el.extensionElements.values ?? []).filter(
+          (v: ModdleElement) => v.$type !== 'zeebe:UserTask',
+        );
+      }
+    } else {
+      addZeebeUserTaskMarker(moddle, el);
+    }
+    return;
+  }
+
   if (prop === 'ad-hoc.ordering') {
     const ordering = values[0];
     if (ordering !== 'Sequential' && ordering !== 'Parallel') {
@@ -752,7 +807,8 @@ export function updateElementProperty(
   throw new Error(
     `Unknown property '${prop}'. Supported: name, zeebe:taskDefinition.type, zeebe:taskDefinition.retries, ` +
     `zeebe:calledDecision.decisionId, zeebe:calledDecision.resultVariable, ` +
-    `zeebe:input, zeebe:output, zeebe:header, zeebe:property, isInterrupting, multi-instance.type, ` +
+    `zeebe:input, zeebe:output, zeebe:header, zeebe:property, zeebe:userTask.disabled, ` +
+    `isInterrupting, multi-instance.type, ` +
     `zeebe:loopCharacteristics.inputCollection, zeebe:loopCharacteristics.inputElement, ` +
     `zeebe:loopCharacteristics.outputCollection, zeebe:loopCharacteristics.outputElement, ` +
     `ad-hoc.ordering, ad-hoc.cancelRemainingInstances, ` +
@@ -787,6 +843,8 @@ function extractZeebe(el: ModdleElement): Record<string, unknown> | undefined {
       if (v.decisionId != null) cd['decisionId'] = v.decisionId;
       if (v.resultVariable != null) cd['resultVariable'] = v.resultVariable;
       if (Object.keys(cd).length > 0) result['calledDecision'] = cd;
+    } else if (type === 'zeebe:UserTask') {
+      result['userTask'] = true;
     } else if (type === 'zeebe:LoopCharacteristics') {
       const lc: Record<string, string> = {};
       if (v.inputCollection != null) lc['inputCollection'] = v.inputCollection;
@@ -851,6 +909,17 @@ function toElementJson(e: ModdleElement): Record<string, unknown> {
     const { elements: children, flows: childFlows } = toContainerJson(e);
     entry['children'] = children;
     entry['childFlows'] = childFlows;
+  }
+  const docs: ModdleElement[] = e.documentation ?? [];
+  if (docs.length > 0) {
+    const doc = docs[0];
+    const docEntry: Record<string, unknown> = { text: doc.text };
+    // Omit textFormat when it is the BPMN-spec default ('text/plain') to keep
+    // the status output concise; only non-default values are meaningful here.
+    if (doc.textFormat !== undefined && doc.textFormat !== 'text/plain') {
+      docEntry['textFormat'] = doc.textFormat;
+    }
+    entry['documentation'] = docEntry;
   }
   return entry;
 }
