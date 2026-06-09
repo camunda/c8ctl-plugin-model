@@ -7,8 +7,9 @@ export interface CursorState {
   cursor: string;
 }
 
-function getStatePath(): string {
+function getStatePath(cwd?: string): string {
   if (process.env.C8CTL_STATE_FILE) return process.env.C8CTL_STATE_FILE;
+  if (cwd) return join(cwd, '.c8ctl-model.json');
   const home = homedir();
   let dir: string;
   if (process.platform === 'darwin') {
@@ -21,8 +22,8 @@ function getStatePath(): string {
   return join(dir, 'c8ctl-model.json');
 }
 
-export function readState(): CursorState {
-  const path = getStatePath();
+export function readState(cwd?: string): CursorState {
+  const path = getStatePath(cwd);
   if (!existsSync(path)) {
     throw new Error('No model found. Run: c8ctl model init <name>');
   }
