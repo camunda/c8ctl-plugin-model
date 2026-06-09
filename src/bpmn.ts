@@ -117,8 +117,8 @@ export function findContainerOf(definitions: ModdleElement, id: string): ModdleE
 }
 
 // Validates user-supplied IDs against the xsd:ID production rule (BPMN 2.0 §7.5.1).
-// This is intentionally more permissive than ELEMENT_ID_PATTERN in args.ts, which only
-// matches auto-generated IDs like `Activity_1` used for positional-arg disambiguation.
+// This is intentionally more permissive than the command-level positional ID pattern,
+// which only matches auto-generated IDs like `Activity_1` used for arg disambiguation.
 const BPMN_ID_PATTERN = /^[A-Za-z_][\w.-]*$/;
 
 function collectAllIds(definitions: ModdleElement): Set<string> {

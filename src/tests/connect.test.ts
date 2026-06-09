@@ -117,24 +117,6 @@ test('connect throws without required arguments', async () => {
   }
 });
 
-test('connect works with semantic IDs set via --id flag', async () => {
-  const cwd = tmpDir();
-  try {
-    await setupModel('proc', cwd);
-    await append(['user-task', 'Review', '--id', 'ReviewTask'], cwd);
-    await append(['exclusive-gateway', 'Decision', '--id', 'ApprovalDecision'], cwd);
-    await connect(['ReviewTask', 'ApprovalDecision'], cwd);
-
-    const status = await getStatus(cwd);
-    const proc = status['process'] as Record<string, unknown>;
-    const flows = proc['flows'] as Array<Record<string, unknown>>;
-    const flow = flows.find((f) => f['source'] === 'ReviewTask' && f['target'] === 'ApprovalDecision');
-    assert.ok(flow, 'flow between semantic IDs should exist');
-  } finally {
-    cleanup(cwd);
-  }
-});
-
 test('connect works with semantic IDs set via update id', async () => {
   const cwd = tmpDir();
   try {

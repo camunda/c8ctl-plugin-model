@@ -28,6 +28,23 @@ test('create adds standalone element with no incoming flow', async () => {
   }
 });
 
+test('create user-task emits zeebe:UserTask marker', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupModel('proc', cwd);
+    await create(['user-task', 'Standalone Task'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['id'] === 'Activity_1');
+    const zeebe = el?.['zeebe'] as Record<string, unknown>;
+    assert.equal(zeebe?.['userTask'], true, 'zeebe:UserTask marker should be present');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
 test('create event-sub-process sets triggeredByEvent', async () => {
   const cwd = tmpDir();
   try {
@@ -112,35 +129,6 @@ test('create-freeze-cursor throws without required arguments', async () => {
     await setupModel('proc', cwd);
     await assert.rejects(() => createFreezeCursor(['user-task'], cwd), /Usage/);
     await assert.rejects(() => createFreezeCursor([], cwd), /Usage/);
-  } finally {
-    cleanup(cwd);
-  }
-});
-
-// --- --id flag ---
-
-test('create --id sets semantic element ID', async () => {
-  const cwd = tmpDir();
-  try {
-    await setupModel('proc', cwd);
-    await create(['end-event', 'Done', '--id', 'EndDone'], cwd);
-
-    const status = await getStatus(cwd);
-    const proc = status['process'] as Record<string, unknown>;
-    const elements = proc['elements'] as Array<Record<string, unknown>>;
-    assert.ok(elements.find((e) => e['id'] === 'EndDone'), 'EndDone element should exist');
-    const state = readState(cwd);
-    assert.equal(state.cursor, 'EndDone');
-  } finally {
-    cleanup(cwd);
-  }
-});
-
-test('create --id rejects invalid ID', async () => {
-  const cwd = tmpDir();
-  try {
-    await setupModel('proc', cwd);
-    await assert.rejects(() => create(['end-event', 'Done', '--id', '1bad'], cwd), /Invalid ID/);
   } finally {
     cleanup(cwd);
   }

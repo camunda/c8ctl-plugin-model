@@ -73,6 +73,23 @@ for (const [type, expectedType] of ELEMENT_TYPES) {
   });
 }
 
+test('append user-task emits zeebe:UserTask marker', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupModel('proc', cwd);
+    await append(['user-task', 'Review'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['id'] === 'Activity_1');
+    const zeebe = el?.['zeebe'] as Record<string, unknown>;
+    assert.equal(zeebe?.['userTask'], true, 'zeebe:UserTask marker should be present');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
 test('append moves cursor to new element', async () => {
   const cwd = tmpDir();
   try {
@@ -241,46 +258,6 @@ test('append throws without required arguments', async () => {
     await setupModel('proc', cwd);
     await assert.rejects(() => append(['user-task'], cwd), /Usage/);
     await assert.rejects(() => append([], cwd), /Usage/);
-  } finally {
-    cleanup(cwd);
-  }
-});
-
-
-// --- --id flag ---
-
-test('append --id sets semantic element ID', async () => {
-  const cwd = tmpDir();
-  try {
-    await setupModel('proc', cwd);
-    await append(['user-task', 'Review', '--id', 'ReviewTask'], cwd);
-
-    const status = await getStatus(cwd);
-    const proc = status['process'] as Record<string, unknown>;
-    const elements = proc['elements'] as Array<Record<string, unknown>>;
-    assert.ok(elements.find((e) => e['id'] === 'ReviewTask'), 'ReviewTask element should exist');
-    const state = readState(cwd);
-    assert.equal(state.cursor, 'ReviewTask');
-  } finally {
-    cleanup(cwd);
-  }
-});
-
-test('append --id rejects invalid ID format', async () => {
-  const cwd = tmpDir();
-  try {
-    await setupModel('proc', cwd);
-    await assert.rejects(() => append(['user-task', 'Review', '--id', '1invalid'], cwd), /Invalid ID/);
-  } finally {
-    cleanup(cwd);
-  }
-});
-
-test('append --id rejects duplicate ID', async () => {
-  const cwd = tmpDir();
-  try {
-    await setupModel('proc', cwd);
-    await assert.rejects(() => append(['user-task', 'Review', '--id', 'StartEvent_1'], cwd), /already used/);
   } finally {
     cleanup(cwd);
   }

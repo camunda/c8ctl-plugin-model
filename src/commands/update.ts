@@ -1,7 +1,8 @@
 import { loadFile, saveFile, getElementById, updateElementProperty, renameElementId } from '../bpmn.js';
 import { readState, writeState } from '../state.js';
 import type { CommandLogger } from '../logger.js';
-import { ELEMENT_ID_PATTERN } from './args.js';
+
+const ELEMENT_ID_PATTERN = /^[A-Za-z]+_\d+$/;
 
 export async function update(args: string[], cwd: string, logger?: CommandLogger): Promise<void> {
   let targetId: string | undefined;

@@ -220,32 +220,3 @@ test('boundary-append appended flow from boundary event works', async () => {
     cleanup(cwd);
   }
 });
-
-// --- --id flag ---
-
-test('boundary-append --id sets semantic element ID', async () => {
-  const cwd = tmpDir();
-  try {
-    await setupWithTask(cwd);
-    await boundaryAppend(['timer', 'Timeout', '--id', 'BoundaryEvent_Timeout'], cwd);
-
-    const status = await getStatus(cwd);
-    const proc = status['process'] as Record<string, unknown>;
-    const elements = proc['elements'] as Array<Record<string, unknown>>;
-    assert.ok(elements.find((e) => e['id'] === 'BoundaryEvent_Timeout'), 'semantic ID should exist');
-    const state = readState(cwd);
-    assert.equal(state.cursor, 'BoundaryEvent_Timeout');
-  } finally {
-    cleanup(cwd);
-  }
-});
-
-test('boundary-append --id rejects invalid ID', async () => {
-  const cwd = tmpDir();
-  try {
-    await setupWithTask(cwd);
-    await assert.rejects(() => boundaryAppend(['timer', 'Timeout', '--id', '1bad'], cwd), /Invalid ID/);
-  } finally {
-    cleanup(cwd);
-  }
-});
