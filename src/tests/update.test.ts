@@ -1908,3 +1908,37 @@ test('update id allows underscore and dot in semantic ID', async () => {
     cleanup(cwd);
   }
 });
+
+test('update id allows hyphen in semantic ID', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithTask(cwd);
+    await update(['id', 'Order-Validation-Task'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    assert.ok(elements.find((e) => e['id'] === 'Order-Validation-Task'), 'semantic ID with hyphens should work');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update id renames a gateway element', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithGateway(cwd);
+    await update(['id', 'ApprovalDecision'], cwd);
+
+    const status = await getStatus(cwd);
+    assert.equal(status['cursor'], 'ApprovalDecision');
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['id'] === 'ApprovalDecision');
+    assert.ok(el, 'ApprovalDecision gateway should exist');
+    assert.equal(el?.['name'], 'Decision');
+    assert.ok(!elements.find((e) => e['id'] === 'Gateway_1'), 'old Gateway_1 ID should no longer exist');
+  } finally {
+    cleanup(cwd);
+  }
+});
