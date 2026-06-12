@@ -32,7 +32,7 @@ export async function update(args: string[], cwd: string, logger?: CommandLogger
   const el = getElementById(definitions, resolvedId);
   if (!el) throw new Error(`Element '${resolvedId}' not found`);
 
-  updateElementProperty(moddle, el, prop, values);
+  updateElementProperty(moddle, el, prop, values, logger);
   await saveFile(state.file, moddle, definitions);
 
   logger?.success(`Updated '${prop}' on ${el.id}`);
