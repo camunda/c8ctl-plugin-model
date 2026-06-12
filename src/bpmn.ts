@@ -1018,7 +1018,7 @@ function toElementJson(e: ModdleElement): Record<string, unknown> {
           outgoing: (e.outgoing ?? []).map((f: ModdleElement) => f.id),
         }),
   };
-  if (eventDefinition === 'timer' && defs.length > 0) {
+  if (eventDefinition?.type === 'timer' && defs.length > 0) {
     const timerDef = defs[0];
     const timerEntry: Record<string, unknown> = {};
     if (timerDef.timeDuration?.body !== undefined) timerEntry['timeDuration'] = timerDef.timeDuration.body;
