@@ -439,3 +439,29 @@ test('--signal-name on timer event throws clear error', async () => {
     cleanup(cwd);
   }
 });
+
+test('--signal-name without value throws clear error', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupModel('proc', cwd);
+    await assert.rejects(
+      () => append(['signal-intermediate-throw-event', 'Throw', '--signal-name'], cwd),
+      /--signal-name requires a value/,
+    );
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('--message-name without value throws clear error', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupModel('proc', cwd);
+    await assert.rejects(
+      () => append(['message-intermediate-catch-event', 'Wait', '--message-name'], cwd),
+      /--message-name requires a value/,
+    );
+  } finally {
+    cleanup(cwd);
+  }
+});

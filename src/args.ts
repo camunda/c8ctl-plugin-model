@@ -38,6 +38,12 @@ export interface EventRefFlags {
 
 export function parseEventRefFlags(flags: Record<string, string | boolean>): EventRefFlags {
   const result: EventRefFlags = {};
+  if (flags['signal-name'] === true) {
+    throw new Error('--signal-name requires a value');
+  }
+  if (flags['message-name'] === true) {
+    throw new Error('--message-name requires a value');
+  }
   const sigName = flagString(flags, 'signal-name');
   const msgName = flagString(flags, 'message-name');
   if (sigName) result.signalName = sigName;
