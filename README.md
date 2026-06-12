@@ -203,6 +203,9 @@ Host element must be an activity (`task`, `user-task`, `service-task`, `script-t
 | `zeebe:formDefinition.externalReference` | `<url>` | — | Only on `user-task`; sets `externalReference`; clears `formId`/`formKey` |
 | `zeebe:formDefinition.bindingType` | `latest` \| `deployment` \| `versionTag` | — | Only on `user-task` |
 | `zeebe:formDefinition.versionTag` | `<tag>` | — | Only on `user-task`; meaningful when `bindingType=versionTag` |
+| `zeebe:adHoc.outputCollection` | `<variable-name>` | — | Only on `ad-hoc-sub-process`; sets `outputCollection` on `<zeebe:adHoc>` |
+| `zeebe:adHoc.outputElement` | `<FEEL-expression>` | — | Only on `ad-hoc-sub-process`; sets `outputElement` on `<zeebe:adHoc>` |
+| `zeebe:adHoc.activeElementsCollection` | `<FEEL-expression>` | — | Only on `ad-hoc-sub-process`; sets `activeElementsCollection` on `<zeebe:adHoc>` |
 
 #### Event sub-process example
 
