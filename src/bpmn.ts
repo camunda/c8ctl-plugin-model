@@ -447,6 +447,8 @@ const ACTIVITY_TYPES = new Set([
 
 const VALID_HOST_TYPES = ACTIVITY_TYPES;
 
+const FORM_DEFINITION_EXCLUSIVE_KEYS = ['formId', 'formKey', 'externalReference'];
+
 function assertActivity(el: ModdleElement, prop: string): void {
   if (!ACTIVITY_TYPES.has(el.$type as string)) {
     throw new Error(`'${prop}' can only be set on activities`);
@@ -619,6 +621,7 @@ export function updateElementProperty(
   el: ModdleElement,
   prop: string,
   values: string[],
+  logger?: { warn(message: string): void },
 ): void {
   if (prop === 'name') {
     el.name = values[0];
@@ -789,6 +792,30 @@ export function updateElementProperty(
     return;
   }
 
+  if (prop.startsWith('zeebe:formDefinition.')) {
+    if (el.$type !== 'bpmn:UserTask') {
+      throw new Error(`'${prop}' can only be set on user tasks`);
+    }
+    const key = prop.slice('zeebe:formDefinition.'.length);
+    const validKeys = ['formId', 'formKey', 'externalReference', 'bindingType', 'versionTag'];
+    if (!validKeys.includes(key)) {
+      throw new Error(
+        `Unknown zeebe:formDefinition property '${key}'. Supported: ${validKeys.join(', ')}`,
+      );
+    }
+    const fd = getOrCreateZeebeChild(moddle, el, 'zeebe:FormDefinition');
+    if (FORM_DEFINITION_EXCLUSIVE_KEYS.includes(key)) {
+      for (const other of FORM_DEFINITION_EXCLUSIVE_KEYS) {
+        if (other !== key && fd[other] != null) {
+          logger?.warn(`Clearing '${other}' because it is mutually exclusive with '${key}'`);
+          fd[other] = undefined;
+        }
+      }
+    }
+    fd[key] = values[0];
+    return;
+  }
+
   throw new Error(
     `Unknown property '${prop}'. Supported: name, zeebe:taskDefinition.type, zeebe:taskDefinition.retries, ` +
     `zeebe:calledDecision.decisionId, zeebe:calledDecision.resultVariable, ` +
@@ -796,7 +823,9 @@ export function updateElementProperty(
     `isInterrupting, multi-instance.type, ` +
     `zeebe:loopCharacteristics.inputCollection, zeebe:loopCharacteristics.inputElement, ` +
     `zeebe:loopCharacteristics.outputCollection, zeebe:loopCharacteristics.outputElement, ` +
-    `ad-hoc.ordering, ad-hoc.cancelRemainingInstances`,
+    `ad-hoc.ordering, ad-hoc.cancelRemainingInstances, ` +
+    `zeebe:formDefinition.formId, zeebe:formDefinition.formKey, zeebe:formDefinition.externalReference, ` +
+    `zeebe:formDefinition.bindingType, zeebe:formDefinition.versionTag`,
   );
 }
 
@@ -836,6 +865,14 @@ function extractZeebe(el: ModdleElement): Record<string, unknown> | undefined {
       if (v.outputCollection != null) lc['outputCollection'] = v.outputCollection;
       if (v.outputElement != null) lc['outputElement'] = v.outputElement;
       if (Object.keys(lc).length > 0) result['loopCharacteristics'] = lc;
+    } else if (type === 'zeebe:FormDefinition') {
+      const fd: Record<string, string> = {};
+      if (v.formId != null) fd['formId'] = v.formId;
+      if (v.formKey != null) fd['formKey'] = v.formKey;
+      if (v.externalReference != null) fd['externalReference'] = v.externalReference;
+      if (v.bindingType != null) fd['bindingType'] = v.bindingType;
+      if (v.versionTag != null) fd['versionTag'] = v.versionTag;
+      if (Object.keys(fd).length > 0) result['formDefinition'] = fd;
     }
   }
 

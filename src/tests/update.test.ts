@@ -957,3 +957,198 @@ test('update zeebe:userTask.disabled throws on non-user-task', async () => {
     cleanup(cwd);
   }
 });
+
+// --- zeebe:formDefinition (user-task only) ---
+
+test('update zeebe:formDefinition.formId sets formId on user-task', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithTask(cwd);
+    await update(['zeebe:formDefinition.formId', 'review-form'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['id'] === 'Activity_1');
+    const zeebe = el?.['zeebe'] as Record<string, unknown>;
+    const fd = zeebe?.['formDefinition'] as Record<string, unknown>;
+    assert.equal(fd?.['formId'], 'review-form');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update zeebe:formDefinition.formKey sets formKey on user-task', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithTask(cwd);
+    await update(['zeebe:formDefinition.formKey', 'camunda-forms:bpmn:review'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['id'] === 'Activity_1');
+    const zeebe = el?.['zeebe'] as Record<string, unknown>;
+    const fd = zeebe?.['formDefinition'] as Record<string, unknown>;
+    assert.equal(fd?.['formKey'], 'camunda-forms:bpmn:review');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update zeebe:formDefinition.externalReference sets externalReference on user-task', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithTask(cwd);
+    await update(['zeebe:formDefinition.externalReference', 'https://example.com/form'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['id'] === 'Activity_1');
+    const zeebe = el?.['zeebe'] as Record<string, unknown>;
+    const fd = zeebe?.['formDefinition'] as Record<string, unknown>;
+    assert.equal(fd?.['externalReference'], 'https://example.com/form');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update zeebe:formDefinition.bindingType sets bindingType on user-task', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithTask(cwd);
+    await update(['zeebe:formDefinition.bindingType', 'deployment'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['id'] === 'Activity_1');
+    const zeebe = el?.['zeebe'] as Record<string, unknown>;
+    const fd = zeebe?.['formDefinition'] as Record<string, unknown>;
+    assert.equal(fd?.['bindingType'], 'deployment');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update zeebe:formDefinition.versionTag sets versionTag on user-task', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithTask(cwd);
+    await update(['zeebe:formDefinition.bindingType', 'versionTag'], cwd);
+    await update(['zeebe:formDefinition.versionTag', 'v1.2'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['id'] === 'Activity_1');
+    const zeebe = el?.['zeebe'] as Record<string, unknown>;
+    const fd = zeebe?.['formDefinition'] as Record<string, unknown>;
+    assert.equal(fd?.['bindingType'], 'versionTag');
+    assert.equal(fd?.['versionTag'], 'v1.2');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update zeebe:formDefinition.formId clears formKey and externalReference', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithTask(cwd);
+    await update(['zeebe:formDefinition.formKey', 'old-key'], cwd);
+    await update(['zeebe:formDefinition.externalReference', 'https://example.com/form'], cwd);
+    await update(['zeebe:formDefinition.formId', 'review-form'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['id'] === 'Activity_1');
+    const zeebe = el?.['zeebe'] as Record<string, unknown>;
+    const fd = zeebe?.['formDefinition'] as Record<string, unknown>;
+    assert.equal(fd?.['formId'], 'review-form');
+    assert.equal(fd?.['formKey'], undefined);
+    assert.equal(fd?.['externalReference'], undefined);
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update zeebe:formDefinition.formKey clears formId and externalReference', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithTask(cwd);
+    await update(['zeebe:formDefinition.formId', 'my-form'], cwd);
+    await update(['zeebe:formDefinition.formKey', 'camunda-forms:bpmn:review'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['id'] === 'Activity_1');
+    const zeebe = el?.['zeebe'] as Record<string, unknown>;
+    const fd = zeebe?.['formDefinition'] as Record<string, unknown>;
+    assert.equal(fd?.['formKey'], 'camunda-forms:bpmn:review');
+    assert.equal(fd?.['formId'], undefined);
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update zeebe:formDefinition.formId updates existing value', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithTask(cwd);
+    await update(['zeebe:formDefinition.formId', 'old-form'], cwd);
+    await update(['zeebe:formDefinition.formId', 'new-form'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['id'] === 'Activity_1');
+    const zeebe = el?.['zeebe'] as Record<string, unknown>;
+    const fd = zeebe?.['formDefinition'] as Record<string, unknown>;
+    assert.equal(fd?.['formId'], 'new-form');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update zeebe:formDefinition.formId throws on service-task', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupModel('proc', cwd);
+    await append(['service-task', 'Do Work'], cwd);
+    await assert.rejects(
+      () => update(['zeebe:formDefinition.formId', 'my-form'], cwd),
+      /user task/,
+    );
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update zeebe:formDefinition.formId throws on exclusive-gateway', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithGateway(cwd);
+    await assert.rejects(
+      () => update(['zeebe:formDefinition.formId', 'my-form'], cwd),
+      /user task/,
+    );
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update zeebe:formDefinition throws for unknown sub-property', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithTask(cwd);
+    await assert.rejects(
+      () => update(['zeebe:formDefinition.unknownProp', 'val'], cwd),
+      /Unknown zeebe:formDefinition property/,
+    );
+  } finally {
+    cleanup(cwd);
+  }
+});

@@ -198,6 +198,11 @@ Host element must be an activity (`task`, `user-task`, `service-task`, `script-t
 | `zeebe:loopCharacteristics.outputElement` | `<expression>` | — | — |
 | `ad-hoc.ordering` | `Sequential` \| `Parallel` | — | Only on `ad-hoc-sub-process` elements |
 | `ad-hoc.cancelRemainingInstances` | `true` \| `false` | — | Only on `ad-hoc-sub-process` elements; default `true` |
+| `zeebe:formDefinition.formId` | `<formId>` | — | Only on `user-task`; sets `formId` on `<zeebe:formDefinition>` (Camunda Form); clears `formKey`/`externalReference` |
+| `zeebe:formDefinition.formKey` | `<formKey>` | — | Only on `user-task`; sets `formKey` (legacy key); clears `formId`/`externalReference` |
+| `zeebe:formDefinition.externalReference` | `<url>` | — | Only on `user-task`; sets `externalReference`; clears `formId`/`formKey` |
+| `zeebe:formDefinition.bindingType` | `latest` \| `deployment` \| `versionTag` | — | Only on `user-task` |
+| `zeebe:formDefinition.versionTag` | `<tag>` | — | Only on `user-task`; meaningful when `bindingType=versionTag` |
 
 #### Event sub-process example
 
