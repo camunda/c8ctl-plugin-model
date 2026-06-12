@@ -46,6 +46,9 @@ export function parseEventRefFlags(flags: Record<string, string | boolean>): Eve
   }
   const sigName = flagString(flags, 'signal-name');
   const msgName = flagString(flags, 'message-name');
+  if (sigName && msgName) {
+    throw new Error('--signal-name and --message-name cannot be used together');
+  }
   if (sigName) result.signalName = sigName;
   if (msgName) result.messageName = msgName;
   return result;

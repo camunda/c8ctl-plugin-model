@@ -709,7 +709,7 @@ export function updateElementProperty(
     const sigDef = defs.find((d: ModdleElement) => d.$type === 'bpmn:SignalEventDefinition');
     if (!sigDef) throw new Error(`Element '${el.id}' does not have a signal event definition`);
     if (!definitions) throw new Error(`'signalRef' requires definitions context`);
-    const signal = getOrDeclareSignal(moddle, definitions, values[0]);
+    const signal = getOrDeclareSignal(moddle, definitions, values.join(' '));
     sigDef.signalRef = signal;
     return;
   }
@@ -719,7 +719,7 @@ export function updateElementProperty(
     const msgDef = defs.find((d: ModdleElement) => d.$type === 'bpmn:MessageEventDefinition');
     if (!msgDef) throw new Error(`Element '${el.id}' does not have a message event definition`);
     if (!definitions) throw new Error(`'messageRef' requires definitions context`);
-    const message = getOrDeclareMessage(moddle, definitions, values[0]);
+    const message = getOrDeclareMessage(moddle, definitions, values.join(' '));
     msgDef.messageRef = message;
     return;
   }

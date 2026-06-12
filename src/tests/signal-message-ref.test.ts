@@ -39,7 +39,7 @@ test('append signal-intermediate-throw-event with --signal-name declares bpmn:Si
 
     const state = readState();
     const xml = readFileSync(state.file, 'utf-8');
-    assert.ok(xml.includes('bpmn:signal'), 'should declare bpmn:signal element');
+    assert.ok(xml.includes('<bpmn:signal '), 'should declare bpmn:signal element');
     assert.ok(xml.includes('name="mySignal"'), 'signal name should appear');
   } finally {
     cleanup(cwd);

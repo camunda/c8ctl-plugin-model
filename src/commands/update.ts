@@ -18,7 +18,8 @@ export async function update(args: string[], cwd: string, logger?: CommandLogger
   if (!prop || values.length === 0) {
     throw new Error(
       'Usage: c8ctl model update [elementId] <property> <value...>\n' +
-        'Properties: name, zeebe:taskDefinition.type, zeebe:taskDefinition.retries,\n' +
+        'Properties: name, signalRef <name>, messageRef <name>,\n' +
+        '            zeebe:taskDefinition.type, zeebe:taskDefinition.retries,\n' +
         '            zeebe:input <source> <target>, zeebe:output <source> <target>,\n' +
         '            zeebe:header <key> <value>, zeebe:property <name> <value>,\n' +
         '            timer.timeDuration <ISO-8601>, timer.timeCycle <ISO-8601>, timer.timeDate <ISO-8601>',
