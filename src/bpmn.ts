@@ -128,11 +128,21 @@ function collectAllIds(definitions: ModdleElement): Set<string> {
     if (re.id) ids.add(re.id as string);
     for (const el of collectAllFlowElements(re)) {
       if (el.id) ids.add(el.id as string);
+      // Collect IDs from event definitions (e.g. ErrorEventDefinition_1)
+      for (const ed of el.eventDefinitions ?? []) {
+        if (ed.id) ids.add(ed.id as string);
+      }
     }
     for (const art of re.artifacts ?? []) {
       if (art.id) ids.add(art.id as string);
     }
   }
+  // Collect IDs from DI plane elements (e.g. StartEvent_1_di, BPMNPlane_1)
+  const plane = definitions.diagrams?.[0]?.plane;
+  for (const pe of plane?.planeElement ?? []) {
+    if (pe.id) ids.add(pe.id as string);
+  }
+  if (plane?.id) ids.add(plane.id as string);
   return ids;
 }
 

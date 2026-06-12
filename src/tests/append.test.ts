@@ -314,3 +314,13 @@ test('append --id rejects duplicate ID', async () => {
     cleanup(cwd);
   }
 });
+
+test('append --id without value throws error', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupModel('proc', cwd);
+    await assert.rejects(() => append(['user-task', 'Review', '--id'], cwd), /--id requires a value/);
+  } finally {
+    cleanup(cwd);
+  }
+});

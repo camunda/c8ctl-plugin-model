@@ -1,14 +1,29 @@
 import { loadFile, saveFile, getElementById, updateElementProperty, renameElementId } from '../bpmn.js';
 import { readState, writeState } from '../state.js';
 import type { CommandLogger } from '../logger.js';
-import { ELEMENT_ID_PATTERN } from './args.js';
+
+// Matches any valid BPMN element ID (xsd:ID: starts with letter or underscore,
+// followed by letters, digits, underscores, hyphens, or dots; no colon allowed).
+const BPMN_ID_RE = /^[A-Za-z_][\w.-]*$/;
+
+// Known property-name patterns for the update command.
+// Used to distinguish an explicit element-ID first arg from a property name.
+function looksLikeProperty(s: string): boolean {
+  if (/^(?:name|id|isInterrupting|documentation)$/.test(s)) return true;
+  if (s.startsWith('zeebe:') || s.startsWith('timer.') ||
+      s.startsWith('ad-hoc.') || s.startsWith('multi-instance.')) return true;
+  return false;
+}
 
 export async function update(args: string[], cwd: string, logger?: CommandLogger): Promise<void> {
   let targetId: string | undefined;
   let remaining = args;
 
-  // If first positional matches element ID pattern, it's the explicit target
-  if (args.length > 0 && ELEMENT_ID_PATTERN.test(args[0])) {
+  // If first positional looks like a BPMN ID (not a property name) and there
+  // are at least 3 args (elementId + property + value), treat it as an explicit
+  // element target. This supports both auto-generated IDs (Activity_1) and
+  // semantic IDs (ReviewTask, ApprovalDecision).
+  if (args.length >= 3 && BPMN_ID_RE.test(args[0]) && looksLikeProperty(args[1])) {
     targetId = args[0];
     remaining = args.slice(1);
   }
@@ -33,6 +48,9 @@ export async function update(args: string[], cwd: string, logger?: CommandLogger
   if (!el) throw new Error(`Element '${resolvedId}' not found`);
 
   if (prop === 'id') {
+    if (values.length !== 1) {
+      throw new Error('Usage: c8ctl model update [elementId] id <new-id>');
+    }
     const newId = values[0];
     renameElementId(definitions, el, newId);
     await saveFile(state.file, moddle, definitions);
