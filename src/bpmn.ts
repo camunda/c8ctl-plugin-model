@@ -253,12 +253,17 @@ function addZeebeUserTaskMarker(moddle: BpmnModdle, el: ModdleElement): void {
   }
 }
 
+/** Sanitize a user-provided name into a valid XML NCName for use as an id attribute. */
+function sanitizeId(name: string): string {
+  return name.replace(/[^a-zA-Z0-9_.-]/g, '_').replace(/^([^a-zA-Z_])/, '_$1');
+}
+
 function getOrDeclareSignal(moddle: BpmnModdle, definitions: ModdleElement, signalName: string): ModdleElement {
   const existing = (definitions.rootElements ?? []).find(
     (e: ModdleElement) => e.$type === 'bpmn:Signal' && e.name === signalName,
   );
   if (existing) return existing;
-  const id = `Signal_${signalName}`;
+  const id = `Signal_${sanitizeId(signalName)}`;
   const signal = moddle.create('bpmn:Signal', { id, name: signalName });
   definitions.rootElements = [...(definitions.rootElements ?? []), signal];
   return signal;
@@ -269,7 +274,7 @@ function getOrDeclareMessage(moddle: BpmnModdle, definitions: ModdleElement, mes
     (e: ModdleElement) => e.$type === 'bpmn:Message' && e.name === messageName,
   );
   if (existing) return existing;
-  const id = `Message_${messageName}`;
+  const id = `Message_${sanitizeId(messageName)}`;
   const message = moddle.create('bpmn:Message', { id, name: messageName });
   definitions.rootElements = [...(definitions.rootElements ?? []), message];
   return message;
@@ -287,13 +292,23 @@ function applyEventRef(
   opts: EventRefOptions,
 ): void {
   const defs: ModdleElement[] = el.eventDefinitions ?? [];
-  if (defs.length === 0) return;
+  if (defs.length === 0) {
+    if (opts.signalName) throw new Error(`--signal-name requires a signal event definition, but element '${el.id}' has none`);
+    if (opts.messageName) throw new Error(`--message-name requires a message event definition, but element '${el.id}' has none`);
+    return;
+  }
   const eventDef = defs[0];
-  if (opts.signalName && eventDef.$type === 'bpmn:SignalEventDefinition') {
+  if (opts.signalName) {
+    if (eventDef.$type !== 'bpmn:SignalEventDefinition') {
+      throw new Error(`--signal-name can only be used with signal events, but element '${el.id}' has ${eventDef.$type}`);
+    }
     const signal = getOrDeclareSignal(moddle, definitions, opts.signalName);
     eventDef.signalRef = signal;
   }
-  if (opts.messageName && eventDef.$type === 'bpmn:MessageEventDefinition') {
+  if (opts.messageName) {
+    if (eventDef.$type !== 'bpmn:MessageEventDefinition') {
+      throw new Error(`--message-name can only be used with message events, but element '${el.id}' has ${eventDef.$type}`);
+    }
     const message = getOrDeclareMessage(moddle, definitions, opts.messageName);
     eventDef.messageRef = message;
   }

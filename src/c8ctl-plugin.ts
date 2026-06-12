@@ -182,9 +182,9 @@ Boundary event types:
   timer, error, message, signal, escalation, compensation, conditional, cancel
   Prefix with non-interrupting- for non-interrupting variants (where applicable)
 
-Signal/message flags (append / create / add-child):
+Signal/message flags (append / create / add-child and freeze-cursor variants):
   --signal-name <name>                Set signalRef inline (auto-declares bpmn:Signal)
-  --message-name <name>              Set messageRef inline (auto-declares bpmn:Message)
+  --message-name <name>               Set messageRef inline (auto-declares bpmn:Message)
 
 Element types (append / create):
   start-event, end-event, task, user-task, service-task, script-task,

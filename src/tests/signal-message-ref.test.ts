@@ -366,3 +366,76 @@ test('end-to-end: signal throw and catch share same signalRef', async () => {
     cleanup(cwd);
   }
 });
+
+// --- ID sanitization ---
+
+test('signal name with spaces is sanitized in XML id attribute', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupModel('proc', cwd);
+    await append(['signal-intermediate-throw-event', 'Notify', '--signal-name', 'my signal name'], cwd);
+
+    const state = readState();
+    const xml = readFileSync(state.file, 'utf-8');
+    assert.ok(xml.includes('id="Signal_my_signal_name"'), 'id should have spaces replaced with underscores');
+    assert.ok(xml.includes('name="my signal name"'), 'name attribute should preserve original value');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('message name with special chars is sanitized in XML id attribute', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupModel('proc', cwd);
+    await append(['message-intermediate-catch-event', 'Wait', '--message-name', 'order:confirmed!'], cwd);
+
+    const state = readState();
+    const xml = readFileSync(state.file, 'utf-8');
+    assert.ok(xml.includes('id="Message_order_confirmed_"'), 'id should have invalid chars replaced');
+    assert.ok(xml.includes('name="order:confirmed!"'), 'name attribute should preserve original value');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+// --- flag/event-type mismatch validation ---
+
+test('--signal-name on message event throws clear error', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupModel('proc', cwd);
+    await assert.rejects(
+      () => append(['message-intermediate-catch-event', 'Wait', '--signal-name', 'badSignal'], cwd),
+      /--signal-name can only be used with signal events/,
+    );
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('--message-name on signal event throws clear error', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupModel('proc', cwd);
+    await assert.rejects(
+      () => append(['signal-intermediate-throw-event', 'Throw', '--message-name', 'badMessage'], cwd),
+      /--message-name can only be used with message events/,
+    );
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('--signal-name on timer event throws clear error', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupModel('proc', cwd);
+    await assert.rejects(
+      () => append(['timer-intermediate-catch-event', 'Wait', '--signal-name', 'badSignal'], cwd),
+      /--signal-name can only be used with signal events/,
+    );
+  } finally {
+    cleanup(cwd);
+  }
+});
