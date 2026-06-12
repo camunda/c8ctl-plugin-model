@@ -1,8 +1,7 @@
 import { addElement, loadFile, saveFile, getElementById } from '../bpmn.js';
-import type { EventRefOptions } from '../bpmn.js';
 import { readState } from '../state.js';
 import { ELEMENT_ID_PATTERN } from './append.js';
-import { parseArgs, flagString } from '../args.js';
+import { parseArgs, parseEventRefFlags } from '../args.js';
 import type { CommandLogger } from '../logger.js';
 
 export async function appendFreezeCursor(args: string[], cwd: string, logger?: CommandLogger): Promise<void> {
@@ -27,12 +26,7 @@ export async function appendFreezeCursor(args: string[], cwd: string, logger?: C
     throw new Error(`Source element '${sourceId}' not found`);
   }
 
-  const eventRefOpts: EventRefOptions = {};
-  const sigName = flagString(flags, 'signal-name');
-  const msgName = flagString(flags, 'message-name');
-  if (sigName) eventRefOpts.signalName = sigName;
-  if (msgName) eventRefOpts.messageName = msgName;
-
+  const eventRefOpts = parseEventRefFlags(flags);
   const newEl = addElement(moddle, definitions, type, label, sourceId, eventRefOpts);
   await saveFile(state.file, moddle, definitions);
 

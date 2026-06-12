@@ -1,7 +1,6 @@
 import { addChildElement, loadFile, saveFile, getElementById } from '../bpmn.js';
-import type { EventRefOptions } from '../bpmn.js';
 import { readState } from '../state.js';
-import { parseArgs, flagString } from '../args.js';
+import { parseArgs, parseEventRefFlags } from '../args.js';
 import type { CommandLogger } from '../logger.js';
 
 export async function addChildFreezeCursor(args: string[], cwd: string, logger?: CommandLogger): Promise<void> {
@@ -21,12 +20,7 @@ export async function addChildFreezeCursor(args: string[], cwd: string, logger?:
     throw new Error(`'${state.cursor}' is ${parent.$type} — add-child-freeze-cursor requires a sub-process`);
   }
 
-  const eventRefOpts: EventRefOptions = {};
-  const sigName = flagString(flags, 'signal-name');
-  const msgName = flagString(flags, 'message-name');
-  if (sigName) eventRefOpts.signalName = sigName;
-  if (msgName) eventRefOpts.messageName = msgName;
-
+  const eventRefOpts = parseEventRefFlags(flags);
   const newEl = addChildElement(moddle, definitions, state.cursor, type, label, eventRefOpts);
   await saveFile(state.file, moddle, definitions);
 

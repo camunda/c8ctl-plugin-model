@@ -969,7 +969,7 @@ function extractZeebe(el: ModdleElement): Record<string, unknown> | undefined {
   return Object.keys(result).length > 0 ? result : undefined;
 }
 
-function toEventDefinitionJson(defs: ModdleElement[]): Record<string, unknown> | undefined {
+export function toEventDefinitionJson(defs: ModdleElement[]): Record<string, unknown> | undefined {
   if (defs.length === 0) return undefined;
   const def = defs[0];
   const type = DEF_TYPE_TO_TRIGGER[def.$type as string] ?? def.$type;

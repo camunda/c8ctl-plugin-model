@@ -30,3 +30,17 @@ export function flagString(flags: Record<string, string | boolean>, key: string)
   const v = flags[key];
   return typeof v === 'string' ? v : undefined;
 }
+
+export interface EventRefFlags {
+  signalName?: string;
+  messageName?: string;
+}
+
+export function parseEventRefFlags(flags: Record<string, string | boolean>): EventRefFlags {
+  const result: EventRefFlags = {};
+  const sigName = flagString(flags, 'signal-name');
+  const msgName = flagString(flags, 'message-name');
+  if (sigName) result.signalName = sigName;
+  if (msgName) result.messageName = msgName;
+  return result;
+}
