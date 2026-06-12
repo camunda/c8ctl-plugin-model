@@ -182,7 +182,7 @@ test('append typed event shows eventDefinition in status', async () => {
     const elements = proc['elements'] as Array<Record<string, unknown>>;
     const el = elements.find((e) => e['name'] === 'Wait');
     assert.equal(el?.['type'], 'intermediateCatchEvent');
-    assert.equal(el?.['eventDefinition'], 'timer');
+    assert.deepEqual(el?.['eventDefinition'], { type: 'timer' });
   } finally {
     cleanup(cwd);
   }
@@ -199,7 +199,7 @@ test('append typed end event shows eventDefinition in status', async () => {
     const elements = proc['elements'] as Array<Record<string, unknown>>;
     const el = elements.find((e) => e['name'] === 'Fail');
     assert.equal(el?.['type'], 'endEvent');
-    assert.equal(el?.['eventDefinition'], 'error');
+    assert.deepEqual(el?.['eventDefinition'], { type: 'error' });
   } finally {
     cleanup(cwd);
   }

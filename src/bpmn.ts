@@ -253,12 +253,59 @@ function addZeebeUserTaskMarker(moddle: BpmnModdle, el: ModdleElement): void {
   }
 }
 
+function getOrDeclareSignal(moddle: BpmnModdle, definitions: ModdleElement, signalName: string): ModdleElement {
+  const existing = (definitions.rootElements ?? []).find(
+    (e: ModdleElement) => e.$type === 'bpmn:Signal' && e.name === signalName,
+  );
+  if (existing) return existing;
+  const id = `Signal_${signalName}`;
+  const signal = moddle.create('bpmn:Signal', { id, name: signalName });
+  definitions.rootElements = [...(definitions.rootElements ?? []), signal];
+  return signal;
+}
+
+function getOrDeclareMessage(moddle: BpmnModdle, definitions: ModdleElement, messageName: string): ModdleElement {
+  const existing = (definitions.rootElements ?? []).find(
+    (e: ModdleElement) => e.$type === 'bpmn:Message' && e.name === messageName,
+  );
+  if (existing) return existing;
+  const id = `Message_${messageName}`;
+  const message = moddle.create('bpmn:Message', { id, name: messageName });
+  definitions.rootElements = [...(definitions.rootElements ?? []), message];
+  return message;
+}
+
+export interface EventRefOptions {
+  signalName?: string;
+  messageName?: string;
+}
+
+function applyEventRef(
+  moddle: BpmnModdle,
+  definitions: ModdleElement,
+  el: ModdleElement,
+  opts: EventRefOptions,
+): void {
+  const defs: ModdleElement[] = el.eventDefinitions ?? [];
+  if (defs.length === 0) return;
+  const eventDef = defs[0];
+  if (opts.signalName && eventDef.$type === 'bpmn:SignalEventDefinition') {
+    const signal = getOrDeclareSignal(moddle, definitions, opts.signalName);
+    eventDef.signalRef = signal;
+  }
+  if (opts.messageName && eventDef.$type === 'bpmn:MessageEventDefinition') {
+    const message = getOrDeclareMessage(moddle, definitions, opts.messageName);
+    eventDef.messageRef = message;
+  }
+}
+
 export function addElement(
   moddle: BpmnModdle,
   definitions: ModdleElement,
   type: string,
   name: string,
   sourceId: string,
+  eventRefOpts?: EventRefOptions,
 ): ModdleElement {
   const { bpmnType, defType, extraProps } = parseElementType(type);
   const process = getProcess(definitions);
@@ -271,6 +318,7 @@ export function addElement(
   }
   const newEl = moddle.create(bpmnType, elProps);
   if (bpmnType === 'bpmn:UserTask') addZeebeUserTaskMarker(moddle, newEl);
+  if (eventRefOpts) applyEventRef(moddle, definitions, newEl, eventRefOpts);
 
   const source = getElementById(definitions, sourceId);
   if (!source) throw new Error(`Source element '${sourceId}' not found`);
@@ -316,6 +364,7 @@ export function addChildElement(
   parentId: string,
   type: string,
   name: string,
+  eventRefOpts?: EventRefOptions,
 ): ModdleElement {
   const process = getProcess(definitions);
   const parent = getElementById(definitions, parentId);
@@ -330,6 +379,7 @@ export function addChildElement(
   }
   const newEl = moddle.create(bpmnType, elProps);
   if (bpmnType === 'bpmn:UserTask') addZeebeUserTaskMarker(moddle, newEl);
+  if (eventRefOpts) applyEventRef(moddle, definitions, newEl, eventRefOpts);
 
   parent.flowElements = [...(parent.flowElements ?? []), newEl];
 
@@ -352,6 +402,7 @@ export function createElement(
   definitions: ModdleElement,
   type: string,
   name: string,
+  eventRefOpts?: EventRefOptions,
 ): ModdleElement {
   const process = getProcess(definitions);
   const { bpmnType, defType, extraProps } = parseElementType(type);
@@ -363,6 +414,7 @@ export function createElement(
   }
   const newEl = moddle.create(bpmnType, elProps);
   if (bpmnType === 'bpmn:UserTask') addZeebeUserTaskMarker(moddle, newEl);
+  if (eventRefOpts) applyEventRef(moddle, definitions, newEl, eventRefOpts);
 
   process.flowElements = [...(process.flowElements ?? []), newEl];
 
@@ -621,10 +673,31 @@ export function updateElementProperty(
   el: ModdleElement,
   prop: string,
   values: string[],
+  definitions?: ModdleElement,
   logger?: { warn(message: string): void },
 ): void {
   if (prop === 'name') {
     el.name = values[0];
+    return;
+  }
+
+  if (prop === 'signalRef') {
+    const defs: ModdleElement[] = el.eventDefinitions ?? [];
+    const sigDef = defs.find((d: ModdleElement) => d.$type === 'bpmn:SignalEventDefinition');
+    if (!sigDef) throw new Error(`Element '${el.id}' does not have a signal event definition`);
+    if (!definitions) throw new Error(`'signalRef' requires definitions context`);
+    const signal = getOrDeclareSignal(moddle, definitions, values[0]);
+    sigDef.signalRef = signal;
+    return;
+  }
+
+  if (prop === 'messageRef') {
+    const defs: ModdleElement[] = el.eventDefinitions ?? [];
+    const msgDef = defs.find((d: ModdleElement) => d.$type === 'bpmn:MessageEventDefinition');
+    if (!msgDef) throw new Error(`Element '${el.id}' does not have a message event definition`);
+    if (!definitions) throw new Error(`'messageRef' requires definitions context`);
+    const message = getOrDeclareMessage(moddle, definitions, values[0]);
+    msgDef.messageRef = message;
     return;
   }
 
@@ -832,7 +905,8 @@ export function updateElementProperty(
   }
 
   throw new Error(
-    `Unknown property '${prop}'. Supported: name, zeebe:taskDefinition.type, zeebe:taskDefinition.retries, ` +
+    `Unknown property '${prop}'. Supported: name, signalRef, messageRef, ` +
+    `zeebe:taskDefinition.type, zeebe:taskDefinition.retries, ` +
     `zeebe:calledDecision.decisionId, zeebe:calledDecision.resultVariable, ` +
     `zeebe:input, zeebe:output, zeebe:header, zeebe:property, zeebe:userTask.disabled, ` +
     `isInterrupting, multi-instance.type, ` +
@@ -895,11 +969,39 @@ function extractZeebe(el: ModdleElement): Record<string, unknown> | undefined {
   return Object.keys(result).length > 0 ? result : undefined;
 }
 
+function toEventDefinitionJson(defs: ModdleElement[]): Record<string, unknown> | undefined {
+  if (defs.length === 0) return undefined;
+  const def = defs[0];
+  const type = DEF_TYPE_TO_TRIGGER[def.$type as string] ?? def.$type;
+  const result: Record<string, unknown> = { type };
+
+  if (def.signalRef) {
+    result['signalRef'] = def.signalRef.name ?? def.signalRef.id ?? def.signalRef;
+  }
+  if (def.messageRef) {
+    result['messageRef'] = def.messageRef.name ?? def.messageRef.id ?? def.messageRef;
+  }
+  if (def.condition?.body) {
+    result['condition'] = def.condition.body;
+  }
+  if (def.timeCycle?.body) {
+    result['timerCycle'] = def.timeCycle.body;
+  }
+  if (def.timeDuration?.body) {
+    result['timerDuration'] = def.timeDuration.body;
+  }
+  if (def.timeDate?.body) {
+    result['timerDate'] = def.timeDate.body;
+  }
+
+  return result;
+}
+
 function toElementJson(e: ModdleElement): Record<string, unknown> {
   const local = (e.$type as string).replace('bpmn:', '');
   const type = local.charAt(0).toLowerCase() + local.slice(1);
   const defs: ModdleElement[] = e.eventDefinitions ?? [];
-  const eventDefinition = defs.length > 0 ? (DEF_TYPE_TO_TRIGGER[defs[0].$type as string] ?? defs[0].$type) : undefined;
+  const eventDefinition = toEventDefinitionJson(defs);
   const entry: Record<string, unknown> = {
     id: e.id,
     type,

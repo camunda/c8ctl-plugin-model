@@ -1,10 +1,13 @@
 import { addElement, loadFile, saveFile, getElementById } from '../bpmn.js';
+import type { EventRefOptions } from '../bpmn.js';
 import { readState } from '../state.js';
 import { ELEMENT_ID_PATTERN } from './append.js';
+import { parseArgs, flagString } from '../args.js';
 import type { CommandLogger } from '../logger.js';
 
 export async function appendFreezeCursor(args: string[], cwd: string, logger?: CommandLogger): Promise<void> {
-  const [type, ...rest] = args;
+  const { positional, flags } = parseArgs(args);
+  const [type, ...rest] = positional;
   if (!type || rest.length === 0) {
     throw new Error('Usage: c8ctl model append-freeze-cursor <type> <label> [sourceElementId]');
   }
@@ -24,7 +27,13 @@ export async function appendFreezeCursor(args: string[], cwd: string, logger?: C
     throw new Error(`Source element '${sourceId}' not found`);
   }
 
-  const newEl = addElement(moddle, definitions, type, label, sourceId);
+  const eventRefOpts: EventRefOptions = {};
+  const sigName = flagString(flags, 'signal-name');
+  const msgName = flagString(flags, 'message-name');
+  if (sigName) eventRefOpts.signalName = sigName;
+  if (msgName) eventRefOpts.messageName = msgName;
+
+  const newEl = addElement(moddle, definitions, type, label, sourceId, eventRefOpts);
   await saveFile(state.file, moddle, definitions);
 
   logger?.success(`Appended ${newEl.$type} '${label}' (${newEl.id}) from ${sourceId}`);

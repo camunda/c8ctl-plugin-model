@@ -332,7 +332,7 @@ test('best-practice: event sub-process for global error handling', async () => {
     assert.ok(evtSubProc, 'event sub-process exists with triggeredByEvent');
 
     const evtChildren = evtSubProc?.['children'] as Array<Record<string, unknown>>;
-    const errorStart = evtChildren.find((c) => c['eventDefinition'] === 'error');
+    const errorStart = evtChildren.find((c) => (c['eventDefinition'] as Record<string, unknown>)?.['type'] === 'error');
     assert.ok(errorStart, 'error start event exists in event sub-process');
 
     // -- lint --
