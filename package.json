@@ -23,7 +23,7 @@
   },
   "devDependencies": {
     "@camunda8/cli": "*",
-    "@types/node": "^22.0.0",
+    "@types/node": "^22.19.21",
     "bpmnlint": "^11.12.1",
     "bpmnlint-plugin-camunda-compat": "^2.52.0",
     "typescript": "^5.0.0"

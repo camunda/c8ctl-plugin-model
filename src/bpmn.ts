@@ -258,12 +258,20 @@ function sanitizeId(name: string): string {
   return name.replace(/[^a-zA-Z0-9_.-]/g, '_').replace(/^([^a-zA-Z_])/, '_$1');
 }
 
+function uniqueRootId(definitions: ModdleElement, base: string): string {
+  const existing = new Set((definitions.rootElements ?? []).map((e: ModdleElement) => e.id as string));
+  if (!existing.has(base)) return base;
+  let i = 1;
+  while (existing.has(`${base}_${i}`)) i++;
+  return `${base}_${i}`;
+}
+
 function getOrDeclareSignal(moddle: BpmnModdle, definitions: ModdleElement, signalName: string): ModdleElement {
   const existing = (definitions.rootElements ?? []).find(
     (e: ModdleElement) => e.$type === 'bpmn:Signal' && e.name === signalName,
   );
   if (existing) return existing;
-  const id = `Signal_${sanitizeId(signalName)}`;
+  const id = uniqueRootId(definitions, `Signal_${sanitizeId(signalName)}`);
   const signal = moddle.create('bpmn:Signal', { id, name: signalName });
   definitions.rootElements = [...(definitions.rootElements ?? []), signal];
   return signal;
@@ -274,7 +282,7 @@ function getOrDeclareMessage(moddle: BpmnModdle, definitions: ModdleElement, mes
     (e: ModdleElement) => e.$type === 'bpmn:Message' && e.name === messageName,
   );
   if (existing) return existing;
-  const id = `Message_${sanitizeId(messageName)}`;
+  const id = uniqueRootId(definitions, `Message_${sanitizeId(messageName)}`);
   const message = moddle.create('bpmn:Message', { id, name: messageName });
   definitions.rootElements = [...(definitions.rootElements ?? []), message];
   return message;
@@ -996,16 +1004,16 @@ export function toEventDefinitionJson(defs: ModdleElement[]): Record<string, unk
   if (def.messageRef) {
     result['messageRef'] = def.messageRef.name ?? def.messageRef.id ?? def.messageRef;
   }
-  if (def.condition?.body) {
+  if (def.condition?.body !== undefined) {
     result['condition'] = def.condition.body;
   }
-  if (def.timeCycle?.body) {
+  if (def.timeCycle?.body !== undefined) {
     result['timerCycle'] = def.timeCycle.body;
   }
-  if (def.timeDuration?.body) {
+  if (def.timeDuration?.body !== undefined) {
     result['timerDuration'] = def.timeDuration.body;
   }
-  if (def.timeDate?.body) {
+  if (def.timeDate?.body !== undefined) {
     result['timerDate'] = def.timeDate.body;
   }
 
