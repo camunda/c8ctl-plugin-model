@@ -137,8 +137,10 @@ function collectAllIds(definitions: ModdleElement): Set<string> {
       if (art.id) ids.add(art.id as string);
     }
   }
-  // Collect IDs from DI plane elements (e.g. StartEvent_1_di, BPMNPlane_1)
-  const plane = definitions.diagrams?.[0]?.plane;
+  // Collect IDs from DI diagram and plane elements (e.g. BPMNDiagram_1, BPMNPlane_1, StartEvent_1_di)
+  const diagram = definitions.diagrams?.[0];
+  if (diagram?.id) ids.add(diagram.id as string);
+  const plane = diagram?.plane;
   for (const pe of plane?.planeElement ?? []) {
     if (pe.id) ids.add(pe.id as string);
   }
