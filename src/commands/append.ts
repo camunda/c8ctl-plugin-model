@@ -2,7 +2,7 @@ import { addElement, loadFile, saveFile, getElementById, renameElementId } from 
 import { readState, writeState } from '../state.js';
 import { parseArgs, parseEventRefFlags } from '../args.js';
 import type { CommandLogger } from '../logger.js';
-import { ELEMENT_ID_PATTERN, BPMN_ID_PATTERN, extractIdFlag } from './args.js';
+import { ELEMENT_ID_PATTERN, extractIdFlag } from './args.js';
 
 export { ELEMENT_ID_PATTERN };
 
@@ -14,18 +14,20 @@ export async function append(args: string[], cwd: string, logger?: CommandLogger
     throw new Error('Usage: c8ctl model append <type> <label> [sourceElementId] [--id <id>]');
   }
 
+  const state = readState();
+  const { moddle, definitions } = await loadFile(state.file);
+
+  // Treat the last arg as an explicit sourceElementId only if it actually resolves
+  // to an existing element — avoids mis-parsing single-word labels like "Application".
   const lastArg = rest[rest.length - 1];
-  const hasExplicitSource = rest.length > 1 && BPMN_ID_PATTERN.test(lastArg);
+  const hasExplicitSource = rest.length > 1 && !!getElementById(definitions, lastArg);
 
   const labelParts = hasExplicitSource ? rest.slice(0, -1) : rest;
   const label = labelParts.join(' ');
   if (!label) throw new Error('Usage: c8ctl model append <type> <label> [sourceElementId] [--id <id>]');
 
-  const state = readState();
   const sourceId = hasExplicitSource ? lastArg : state.cursor;
-
-  const { moddle, definitions } = await loadFile(state.file);
-  if (!getElementById(definitions, sourceId)) {
+  if (!hasExplicitSource && !getElementById(definitions, sourceId)) {
     throw new Error(`Source element '${sourceId}' not found`);
   }
 

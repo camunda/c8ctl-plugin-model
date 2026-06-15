@@ -157,14 +157,16 @@ test('append supports multi-word labels', async () => {
   }
 });
 
-test('append throws when source element not found', async () => {
+test('append treats unresolvable last token as part of label', async () => {
   const cwd = tmpDir();
   try {
     await setupModel('proc', cwd);
-    await assert.rejects(
-      () => append(['user-task', 'Task', 'Activity_99'], cwd),
-      /not found/,
-    );
+    await append(['user-task', 'Task', 'Activity_99'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    assert.ok(elements.find((e) => e['name'] === 'Task Activity_99'), 'unresolvable token should be part of label');
   } finally {
     cleanup(cwd);
   }
