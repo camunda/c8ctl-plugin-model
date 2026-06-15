@@ -9,7 +9,7 @@ const BPMN_ID_RE = /^[A-Za-z_][\w.-]*$/;
 // Known property-name patterns for the update command.
 // Used to distinguish an explicit element-ID first arg from a property name.
 function looksLikeProperty(s: string): boolean {
-  if (/^(?:name|id|isInterrupting|documentation)$/.test(s)) return true;
+  if (/^(?:name|id|isInterrupting|documentation|signalRef|messageRef)$/.test(s)) return true;
   if (s.startsWith('zeebe:') || s.startsWith('timer.') ||
       s.startsWith('ad-hoc.') || s.startsWith('multi-instance.')) return true;
   return false;
