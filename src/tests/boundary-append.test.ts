@@ -191,14 +191,17 @@ test('boundary-append throws for unknown event type', async () => {
   }
 });
 
-test('boundary-append throws when host element not found', async () => {
+test('boundary-append treats unresolvable last token as part of label', async () => {
   const cwd = tmpDir();
   try {
     await setupWithTask(cwd);
-    await assert.rejects(
-      () => boundaryAppend(['timer', 'Timeout', 'Activity_99'], cwd),
-      /not found/,
-    );
+    await boundaryAppend(['timer', 'Timeout Activity_99'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const be = elements.find((e) => e['type'] === 'boundaryEvent');
+    assert.equal(be?.['name'], 'Timeout Activity_99', 'unresolvable token should be part of label');
   } finally {
     cleanup(cwd);
   }
