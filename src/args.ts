@@ -30,3 +30,26 @@ export function flagString(flags: Record<string, string | boolean>, key: string)
   const v = flags[key];
   return typeof v === 'string' ? v : undefined;
 }
+
+export interface EventRefFlags {
+  signalName?: string;
+  messageName?: string;
+}
+
+export function parseEventRefFlags(flags: Record<string, string | boolean>): EventRefFlags {
+  const result: EventRefFlags = {};
+  if (flags['signal-name'] === true) {
+    throw new Error('--signal-name requires a value');
+  }
+  if (flags['message-name'] === true) {
+    throw new Error('--message-name requires a value');
+  }
+  const sigName = flagString(flags, 'signal-name');
+  const msgName = flagString(flags, 'message-name');
+  if (sigName && msgName) {
+    throw new Error('--signal-name and --message-name cannot be used together');
+  }
+  if (sigName) result.signalName = sigName;
+  if (msgName) result.messageName = msgName;
+  return result;
+}

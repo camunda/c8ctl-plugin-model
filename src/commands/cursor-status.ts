@@ -1,4 +1,4 @@
-import { loadFile, getElementById } from '../bpmn.js';
+import { loadFile, getElementById, toEventDefinitionJson } from '../bpmn.js';
 import { readState } from '../state.js';
 import type { CommandLogger } from '../logger.js';
 
@@ -10,5 +10,11 @@ export async function cursorStatus(_args: string[], cwd: string, logger?: Comman
   const type = el ? (el.$type as string).replace('bpmn:', '') : 'unknown';
   const name = el?.name ?? '';
 
-  logger?.json({ cursor: state.cursor, type, name, file: state.file });
+  const result: Record<string, unknown> = { cursor: state.cursor, type, name, file: state.file };
+  if (el) {
+    const eventDefinition = toEventDefinitionJson(el.eventDefinitions ?? []);
+    if (eventDefinition) result['eventDefinition'] = eventDefinition;
+  }
+
+  logger?.json(result);
 }

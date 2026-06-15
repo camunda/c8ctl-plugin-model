@@ -1798,7 +1798,12 @@ test('update zeebe:adHoc unknown key throws', async () => {
     await setupWithAdHoc(cwd);
     await assert.rejects(
       () => update(['zeebe:adHoc.unknown', 'val'], cwd),
-      /outputCollection.*outputElement.*activeElementsCollection|activeElementsCollection.*outputCollection.*outputElement/,
+      (err: Error) => {
+        assert.ok(err.message.includes('outputCollection'), 'should mention outputCollection');
+        assert.ok(err.message.includes('outputElement'), 'should mention outputElement');
+        assert.ok(err.message.includes('activeElementsCollection'), 'should mention activeElementsCollection');
+        return true;
+      },
     );
   } finally {
     cleanup(cwd);

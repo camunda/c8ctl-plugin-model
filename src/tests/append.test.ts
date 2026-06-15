@@ -34,7 +34,6 @@ const ELEMENT_TYPES: Array<[string, string]> = [
   ['signal-intermediate-catch-event', 'intermediateCatchEvent'],
   ['conditional-intermediate-catch-event', 'intermediateCatchEvent'],
   ['link-intermediate-catch-event', 'intermediateCatchEvent'],
-  ['intermediate-throw-event', 'intermediateThrowEvent'],
   ['message-intermediate-throw-event', 'intermediateThrowEvent'],
   ['signal-intermediate-throw-event', 'intermediateThrowEvent'],
   ['escalation-intermediate-throw-event', 'intermediateThrowEvent'],
@@ -182,7 +181,7 @@ test('append typed event shows eventDefinition in status', async () => {
     const elements = proc['elements'] as Array<Record<string, unknown>>;
     const el = elements.find((e) => e['name'] === 'Wait');
     assert.equal(el?.['type'], 'intermediateCatchEvent');
-    assert.equal(el?.['eventDefinition'], 'timer');
+    assert.deepEqual(el?.['eventDefinition'], { type: 'timer' });
   } finally {
     cleanup(cwd);
   }
@@ -199,7 +198,7 @@ test('append typed end event shows eventDefinition in status', async () => {
     const elements = proc['elements'] as Array<Record<string, unknown>>;
     const el = elements.find((e) => e['name'] === 'Fail');
     assert.equal(el?.['type'], 'endEvent');
-    assert.equal(el?.['eventDefinition'], 'error');
+    assert.deepEqual(el?.['eventDefinition'], { type: 'error' });
   } finally {
     cleanup(cwd);
   }
@@ -211,6 +210,19 @@ test('append intermediate-catch-event throws and directs to typed variants', asy
     await setupModel('proc', cwd);
     await assert.rejects(
       () => append(['intermediate-catch-event', 'Catch'], cwd),
+      /typed variant/,
+    );
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('append intermediate-throw-event throws and directs to typed variants', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupModel('proc', cwd);
+    await assert.rejects(
+      () => append(['intermediate-throw-event', 'Throw'], cwd),
       /typed variant/,
     );
   } finally {

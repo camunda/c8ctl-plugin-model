@@ -182,10 +182,14 @@ Boundary event types:
   timer, error, message, signal, escalation, compensation, conditional, cancel
   Prefix with non-interrupting- for non-interrupting variants (where applicable)
 
+Signal/message flags (append / create / add-child and freeze-cursor variants):
+  --signal-name <name>                Set signalRef inline (auto-declares bpmn:Signal)
+  --message-name <name>               Set messageRef inline (auto-declares bpmn:Message)
+
 Element types (append / create):
   start-event, end-event, task, user-task, service-task, script-task,
   exclusive-gateway, parallel-gateway, inclusive-gateway, event-based-gateway, call-activity,
-  sub-process, ad-hoc-sub-process, intermediate-catch-event, intermediate-throw-event
+  sub-process, ad-hoc-sub-process
   event-sub-process                   Sub-process with triggeredByEvent=true (use create)
 
 Typed start events (append / create):
@@ -209,6 +213,8 @@ Typed end events (append / create):
 
 Update properties:
   name                                Element name
+  signalRef <signalName>              Set/change signal reference on signal events
+  messageRef <messageName>            Set/change message reference on message events
   isInterrupting <true|false>         Set interrupting flag on start events
   zeebe:taskDefinition.type           Zeebe job type
   zeebe:taskDefinition.retries        Zeebe job retries

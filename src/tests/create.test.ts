@@ -87,7 +87,7 @@ test('create supports typed start events', async () => {
     const el = elements.find((e) => e['name'] === 'On Error');
     assert.ok(el, 'element should exist');
     assert.equal(el?.['type'], 'startEvent');
-    assert.equal(el?.['eventDefinition'], 'error');
+    assert.deepEqual(el?.['eventDefinition'], { type: 'error' });
   } finally {
     cleanup(cwd);
   }
