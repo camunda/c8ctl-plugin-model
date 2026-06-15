@@ -34,7 +34,6 @@ const ELEMENT_TYPES: Array<[string, string]> = [
   ['signal-intermediate-catch-event', 'intermediateCatchEvent'],
   ['conditional-intermediate-catch-event', 'intermediateCatchEvent'],
   ['link-intermediate-catch-event', 'intermediateCatchEvent'],
-  ['intermediate-throw-event', 'intermediateThrowEvent'],
   ['message-intermediate-throw-event', 'intermediateThrowEvent'],
   ['signal-intermediate-throw-event', 'intermediateThrowEvent'],
   ['escalation-intermediate-throw-event', 'intermediateThrowEvent'],
@@ -211,6 +210,19 @@ test('append intermediate-catch-event throws and directs to typed variants', asy
     await setupModel('proc', cwd);
     await assert.rejects(
       () => append(['intermediate-catch-event', 'Catch'], cwd),
+      /typed variant/,
+    );
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('append intermediate-throw-event throws and directs to typed variants', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupModel('proc', cwd);
+    await assert.rejects(
+      () => append(['intermediate-throw-event', 'Throw'], cwd),
       /typed variant/,
     );
   } finally {

@@ -198,6 +198,14 @@ function parseElementType(type: string): { bpmnType: string; defType?: string; e
       `link-intermediate-catch-event`,
     );
   }
+  if (type === 'intermediate-throw-event') {
+    throw new Error(
+      `'intermediate-throw-event' is not supported — use a typed variant: ` +
+      `message-intermediate-throw-event, signal-intermediate-throw-event, ` +
+      `escalation-intermediate-throw-event, compensation-intermediate-throw-event, ` +
+      `link-intermediate-throw-event`,
+    );
+  }
   for (const { suffix, bpmnType, defs } of TYPED_EVENT_GROUPS) {
     if (type.endsWith(suffix)) {
       const trigger = type.slice(0, -suffix.length);

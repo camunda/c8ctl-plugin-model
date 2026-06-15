@@ -35,7 +35,6 @@ const ELEMENT_TYPES: Array<[string, string]> = [
   ['signal-intermediate-catch-event', 'intermediateCatchEvent'],
   ['conditional-intermediate-catch-event', 'intermediateCatchEvent'],
   ['link-intermediate-catch-event', 'intermediateCatchEvent'],
-  ['intermediate-throw-event', 'intermediateThrowEvent'],
   ['message-intermediate-throw-event', 'intermediateThrowEvent'],
   ['signal-intermediate-throw-event', 'intermediateThrowEvent'],
   ['escalation-intermediate-throw-event', 'intermediateThrowEvent'],
