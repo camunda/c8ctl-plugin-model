@@ -324,3 +324,19 @@ test('append --id without value throws error', async () => {
     cleanup(cwd);
   }
 });
+
+test('append accepts semantic sourceElementId', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupModel('proc', cwd);
+    await append(['user-task', 'Review', '--id', 'ReviewTask'], cwd);
+    await append(['service-task', 'Execute', 'ReviewTask'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const flows = proc['flows'] as Array<Record<string, unknown>>;
+    assert.ok(flows.find((f) => f['source'] === 'ReviewTask'), 'flow from semantic source ID should exist');
+  } finally {
+    cleanup(cwd);
+  }
+});

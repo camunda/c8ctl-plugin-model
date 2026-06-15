@@ -158,12 +158,13 @@ export function renameElementId(
     );
   }
 
+  const oldId = el.id as string;
+  if (newId === oldId) return;
+
   const allIds = collectAllIds(definitions);
   if (allIds.has(newId)) {
     throw new Error(`ID '${newId}' is already used by another element`);
   }
-
-  const oldId = el.id as string;
   el.id = newId;
 
   // Update the corresponding DI shape or edge ID

@@ -1942,3 +1942,18 @@ test('update id renames a gateway element', async () => {
     cleanup(cwd);
   }
 });
+
+test('update id with same ID is a no-op', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithTask(cwd);
+    await update(['id', 'Activity_1'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    assert.ok(elements.find((e) => e['id'] === 'Activity_1'), 'element should still exist with same ID');
+  } finally {
+    cleanup(cwd);
+  }
+});

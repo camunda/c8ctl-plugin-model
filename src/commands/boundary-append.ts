@@ -1,7 +1,7 @@
 import { addBoundaryEvent, loadFile, saveFile, renameElementId } from '../bpmn.js';
 import { readState, writeState } from '../state.js';
 import type { CommandLogger } from '../logger.js';
-import { ELEMENT_ID_PATTERN, extractIdFlag } from './args.js';
+import { BPMN_ID_PATTERN, extractIdFlag } from './args.js';
 
 export async function boundaryAppend(args: string[], cwd: string, logger?: CommandLogger): Promise<void> {
   const { id: customId, remaining: argsWithoutId } = extractIdFlag(args);
@@ -15,7 +15,7 @@ export async function boundaryAppend(args: string[], cwd: string, logger?: Comma
   }
 
   const lastArg = rest[rest.length - 1];
-  const hasExplicitHost = ELEMENT_ID_PATTERN.test(lastArg);
+  const hasExplicitHost = rest.length > 1 && BPMN_ID_PATTERN.test(lastArg);
 
   const labelParts = hasExplicitHost ? rest.slice(0, -1) : rest;
   const label = labelParts.join(' ');

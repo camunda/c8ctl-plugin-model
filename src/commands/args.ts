@@ -5,6 +5,13 @@
 export const ELEMENT_ID_PATTERN = /^[A-Za-z]+_\d+$/;
 
 /**
+ * Matches any valid BPMN xsd:ID, including semantic IDs such as `ReviewTask`
+ * or `ApprovalDecision`. Used where auto-generated AND semantic IDs must be
+ * recognised as explicit element ID arguments.
+ */
+export const BPMN_ID_PATTERN = /^[A-Za-z_][\w.-]*$/;
+
+/**
  * Extracts `--id <value>` from an args array and returns the value and the
  * remaining args with the flag and its value removed.
  * Throws if `--id` is present but no value follows it.

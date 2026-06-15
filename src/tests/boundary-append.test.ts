@@ -249,3 +249,20 @@ test('boundary-append --id rejects invalid ID', async () => {
     cleanup(cwd);
   }
 });
+
+test('boundary-append accepts semantic hostElementId', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupModel('proc', cwd);
+    await append(['user-task', 'Review', '--id', 'ReviewTask'], cwd);
+    await boundaryAppend(['timer', 'Timeout', 'ReviewTask'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const be = elements.find((e) => e['type'] === 'boundaryEvent');
+    assert.equal(be?.['attachedToRef'], 'ReviewTask', 'boundary event should be attached to semantic host ID');
+  } finally {
+    cleanup(cwd);
+  }
+});

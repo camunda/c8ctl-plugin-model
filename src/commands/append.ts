@@ -2,7 +2,7 @@ import { addElement, loadFile, saveFile, getElementById, renameElementId } from 
 import { readState, writeState } from '../state.js';
 import { parseArgs, parseEventRefFlags } from '../args.js';
 import type { CommandLogger } from '../logger.js';
-import { ELEMENT_ID_PATTERN, extractIdFlag } from './args.js';
+import { ELEMENT_ID_PATTERN, BPMN_ID_PATTERN, extractIdFlag } from './args.js';
 
 export { ELEMENT_ID_PATTERN };
 
@@ -15,7 +15,7 @@ export async function append(args: string[], cwd: string, logger?: CommandLogger
   }
 
   const lastArg = rest[rest.length - 1];
-  const hasExplicitSource = ELEMENT_ID_PATTERN.test(lastArg);
+  const hasExplicitSource = rest.length > 1 && BPMN_ID_PATTERN.test(lastArg);
 
   const labelParts = hasExplicitSource ? rest.slice(0, -1) : rest;
   const label = labelParts.join(' ');
