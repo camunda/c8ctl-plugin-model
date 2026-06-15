@@ -700,7 +700,7 @@ export function updateElementProperty(
   logger?: { warn(message: string): void },
 ): void {
   if (prop === 'name') {
-    el.name = values[0];
+    el.name = values.join(' ');
     return;
   }
 
