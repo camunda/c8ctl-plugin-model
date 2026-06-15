@@ -189,7 +189,7 @@ Signal/message flags (append / create / add-child and freeze-cursor variants):
 Element types (append / create):
   start-event, end-event, task, user-task, service-task, script-task,
   exclusive-gateway, parallel-gateway, inclusive-gateway, event-based-gateway, call-activity,
-  sub-process, ad-hoc-sub-process, intermediate-catch-event, intermediate-throw-event
+  sub-process, ad-hoc-sub-process, intermediate-throw-event
   event-sub-process                   Sub-process with triggeredByEvent=true (use create)
 
 Typed start events (append / create):
