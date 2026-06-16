@@ -19,7 +19,7 @@ export const BPMN_ID_PATTERN = /^[A-Za-z_][\w.-]*$/;
 export function extractIdFlag(args: string[]): { id: string | undefined; remaining: string[] } {
   const idx = args.indexOf('--id');
   if (idx === -1) return { id: undefined, remaining: args };
-  if (idx + 1 >= args.length) {
+  if (idx + 1 >= args.length || args[idx + 1].startsWith('--')) {
     throw new Error('--id requires a value');
   }
   const id = args[idx + 1];
