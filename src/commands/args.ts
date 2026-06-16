@@ -4,12 +4,8 @@
  */
 export const ELEMENT_ID_PATTERN = /^[A-Za-z]+_\d+$/;
 
-/**
- * Matches any valid BPMN xsd:ID, including semantic IDs such as `ReviewTask`
- * or `ApprovalDecision`. Used where auto-generated AND semantic IDs must be
- * recognised as explicit element ID arguments.
- */
-export const BPMN_ID_PATTERN = /^[A-Za-z_][\w.-]*$/;
+/** Re-exported from src/bpmn.ts — single source of truth for xsd:ID validation. */
+export { BPMN_ID_PATTERN } from '../bpmn.js';
 
 /**
  * Extracts `--id <value>` from an args array and returns the value and the
@@ -19,6 +15,9 @@ export const BPMN_ID_PATTERN = /^[A-Za-z_][\w.-]*$/;
 export function extractIdFlag(args: string[]): { id: string | undefined; remaining: string[] } {
   const idx = args.indexOf('--id');
   if (idx === -1) return { id: undefined, remaining: args };
+  if (args.indexOf('--id', idx + 1) !== -1) {
+    throw new Error('--id may only be specified once');
+  }
   if (idx + 1 >= args.length || args[idx + 1].startsWith('--')) {
     throw new Error('--id requires a value');
   }
