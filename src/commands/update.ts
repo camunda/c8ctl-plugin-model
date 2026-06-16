@@ -1,10 +1,7 @@
 import { loadFile, saveFile, getElementById, updateElementProperty, renameElementId } from '../bpmn.js';
 import { readState, writeState } from '../state.js';
 import type { CommandLogger } from '../logger.js';
-
-// Matches any valid BPMN element ID (xsd:ID: starts with letter or underscore,
-// followed by letters, digits, underscores, hyphens, or dots; no colon allowed).
-const BPMN_ID_RE = /^[A-Za-z_][\w.-]*$/;
+import { BPMN_ID_PATTERN } from './args.js';
 
 // Known property-name patterns for the update command.
 // Used to distinguish an explicit element-ID first arg from a property name.
@@ -23,7 +20,7 @@ export async function update(args: string[], cwd: string, logger?: CommandLogger
   // are at least 3 args (elementId + property + value), treat it as an explicit
   // element target. This supports both auto-generated IDs (Activity_1) and
   // semantic IDs (ReviewTask, ApprovalDecision).
-  if (args.length >= 3 && BPMN_ID_RE.test(args[0]) && looksLikeProperty(args[1])) {
+  if (args.length >= 3 && BPMN_ID_PATTERN.test(args[0]) && looksLikeProperty(args[1])) {
     targetId = args[0];
     remaining = args.slice(1);
   }
