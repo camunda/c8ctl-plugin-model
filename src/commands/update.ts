@@ -49,6 +49,10 @@ export async function update(args: string[], cwd: string, logger?: CommandLogger
       throw new Error('Usage: c8ctl model update [elementId] id <new-id>');
     }
     const newId = values[0];
+    if (newId === (el.id as string)) {
+      logger?.info(`ID '${resolvedId}' unchanged`);
+      return;
+    }
     renameElementId(definitions, el, newId);
     await saveFile(state.file, moddle, definitions);
     const newState = state.cursor === resolvedId ? { ...state, cursor: newId } : state;
