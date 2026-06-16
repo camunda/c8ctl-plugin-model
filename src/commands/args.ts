@@ -1,6 +1,6 @@
 /**
- * Matches auto-generated element IDs such as `Activity_1`, `Gateway_2`, `BoundaryEvent_3`.
- * Used to distinguish explicit element ID arguments from labels in command arg lists.
+ * Matches *auto-generated* element IDs only (`Activity_1`, `Gateway_2`, etc.).
+ * Do NOT use this to validate or detect semantic IDs — use BPMN_ID_PATTERN for that.
  */
 export const ELEMENT_ID_PATTERN = /^[A-Za-z]+_\d+$/;
 
