@@ -121,6 +121,13 @@ export function findContainerOf(definitions: ModdleElement, id: string): ModdleE
 // matches auto-generated IDs like `Activity_1` used for positional-arg disambiguation.
 const BPMN_ID_PATTERN = /^[A-Za-z_][\w.-]*$/;
 
+function collectLaneIds(laneSet: ModdleElement, ids: Set<string>): void {
+  for (const lane of laneSet.lanes ?? []) {
+    if (lane.id) ids.add(lane.id as string);
+    if (lane.childLaneSet) collectLaneIds(lane.childLaneSet, ids);
+  }
+}
+
 function collectAllIds(definitions: ModdleElement): Set<string> {
   const ids = new Set<string>();
   if (definitions.id) ids.add(definitions.id as string);
@@ -135,6 +142,11 @@ function collectAllIds(definitions: ModdleElement): Set<string> {
     }
     for (const art of re.artifacts ?? []) {
       if (art.id) ids.add(art.id as string);
+    }
+    // Collect IDs from lanes (e.g. Lane_1, nested lanes)
+    for (const ls of re.laneSets ?? []) {
+      if (ls.id) ids.add(ls.id as string);
+      collectLaneIds(ls, ids);
     }
   }
   // Collect IDs from DI diagram and plane elements (e.g. BPMNDiagram_1, BPMNPlane_1, StartEvent_1_di)
@@ -166,6 +178,9 @@ export function renameElementId(
   const allIds = collectAllIds(definitions);
   if (allIds.has(newId)) {
     throw new Error(`ID '${newId}' is already used by another element`);
+  }
+  if (allIds.has(`${newId}_di`)) {
+    throw new Error(`ID '${newId}_di' is already used by a DI element — choose a different ID`);
   }
   el.id = newId;
 
