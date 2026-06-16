@@ -148,14 +148,15 @@ function collectAllIds(definitions: ModdleElement): Set<string> {
       collectLaneIds(ls, ids);
     }
   }
-  // Collect IDs from DI diagram and plane elements (e.g. BPMNDiagram_1, BPMNPlane_1, StartEvent_1_di)
-  const diagram = definitions.diagrams?.[0];
-  if (diagram?.id) ids.add(diagram.id as string);
-  const plane = diagram?.plane;
-  for (const pe of plane?.planeElement ?? []) {
-    if (pe.id) ids.add(pe.id as string);
+  // Collect IDs from all DI diagrams and their plane elements
+  for (const diagram of definitions.diagrams ?? []) {
+    if (diagram.id) ids.add(diagram.id as string);
+    const plane = diagram.plane;
+    if (plane?.id) ids.add(plane.id as string);
+    for (const pe of plane?.planeElement ?? []) {
+      if (pe.id) ids.add(pe.id as string);
+    }
   }
-  if (plane?.id) ids.add(plane.id as string);
   return ids;
 }
 
@@ -183,11 +184,9 @@ export function renameElementId(
   }
   el.id = newId;
 
-  // Update the corresponding DI shape or edge ID
-  const diagram = definitions.diagrams?.[0];
-  const plane = diagram?.plane;
-  if (plane) {
-    const diElement = (plane.planeElement ?? []).find(
+  // Update the corresponding DI shape or edge ID across all diagrams
+  for (const diagram of definitions.diagrams ?? []) {
+    const diElement = (diagram.plane?.planeElement ?? []).find(
       (pe: ModdleElement) => pe.id === `${oldId}_di`,
     );
     if (diElement) {
