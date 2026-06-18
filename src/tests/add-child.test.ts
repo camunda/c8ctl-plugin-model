@@ -116,3 +116,36 @@ test('add-child user-task emits zeebe:UserTask marker', async () => {
     cleanup(cwd);
   }
 });
+
+// --- --id flag ---
+
+test('add-child --id sets semantic element ID', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupModel('proc', cwd);
+    await append(['sub-process', 'My Sub'], cwd); // Activity_1, cursor → Activity_1
+    await addChild(['user-task', 'Review', '--id', 'ReviewTask'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const sub = elements.find((e) => e['id'] === 'Activity_1') as Record<string, unknown> | undefined;
+    const children = sub?.['children'] as Array<Record<string, unknown>>;
+    assert.ok(children?.find((c) => c['id'] === 'ReviewTask'), 'ReviewTask child should exist');
+    const state = readState(cwd);
+    assert.equal(state.cursor, 'ReviewTask');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('add-child --id rejects invalid ID', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupModel('proc', cwd);
+    await append(['sub-process', 'My Sub'], cwd);
+    await assert.rejects(() => addChild(['user-task', 'Review', '--id', '1bad'], cwd), /Invalid ID/);
+  } finally {
+    cleanup(cwd);
+  }
+});

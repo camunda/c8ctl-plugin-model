@@ -191,14 +191,17 @@ test('boundary-append throws for unknown event type', async () => {
   }
 });
 
-test('boundary-append throws when host element not found', async () => {
+test('boundary-append treats unresolvable last token as part of label', async () => {
   const cwd = tmpDir();
   try {
     await setupWithTask(cwd);
-    await assert.rejects(
-      () => boundaryAppend(['timer', 'Timeout', 'Activity_99'], cwd),
-      /not found/,
-    );
+    await boundaryAppend(['timer', 'Timeout Activity_99'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const be = elements.find((e) => e['type'] === 'boundaryEvent');
+    assert.equal(be?.['name'], 'Timeout Activity_99', 'unresolvable token should be part of label');
   } finally {
     cleanup(cwd);
   }
@@ -216,6 +219,52 @@ test('boundary-append appended flow from boundary event works', async () => {
     const flows = proc['flows'] as Array<Record<string, unknown>>;
     const flow = flows.find((f) => f['source'] === 'BoundaryEvent_1' && f['target'] === 'EndEvent_1');
     assert.ok(flow, 'flow from boundary event to end should exist');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+// --- --id flag ---
+
+test('boundary-append --id sets semantic element ID', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithTask(cwd);
+    await boundaryAppend(['timer', 'Timeout', '--id', 'BoundaryEvent_Timeout'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    assert.ok(elements.find((e) => e['id'] === 'BoundaryEvent_Timeout'), 'semantic ID should exist');
+    const state = readState(cwd);
+    assert.equal(state.cursor, 'BoundaryEvent_Timeout');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('boundary-append --id rejects invalid ID', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithTask(cwd);
+    await assert.rejects(() => boundaryAppend(['timer', 'Timeout', '--id', '1bad'], cwd), /Invalid ID/);
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('boundary-append accepts semantic hostElementId', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupModel('proc', cwd);
+    await append(['user-task', 'Review', '--id', 'ReviewTask'], cwd);
+    await boundaryAppend(['timer', 'Timeout', 'ReviewTask'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const be = elements.find((e) => e['type'] === 'boundaryEvent');
+    assert.equal(be?.['attachedToRef'], 'ReviewTask', 'boundary event should be attached to semantic host ID');
   } finally {
     cleanup(cwd);
   }

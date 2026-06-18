@@ -449,13 +449,15 @@ test('update throws for unknown property', async () => {
   }
 });
 
-test('update throws when element not found', async () => {
+test('update treats unresolvable first arg as property name', async () => {
   const cwd = tmpDir();
   try {
     await setupWithTask(cwd);
+    // Activity_99 does not exist, so it is not treated as an element ID —
+    // it falls through as the property name and fails with "Unknown property".
     await assert.rejects(
       () => update(['Activity_99', 'name', 'X'], cwd),
-      /not found/,
+      /Unknown property/,
     );
   } finally {
     cleanup(cwd);
@@ -1805,6 +1807,154 @@ test('update zeebe:adHoc unknown key throws', async () => {
         return true;
       },
     );
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+// --- update id ---
+
+test('update id renames cursor element and updates cursor state', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithTask(cwd);
+    await update(['id', 'ReviewTask'], cwd);
+
+    const status = await getStatus(cwd);
+    assert.equal(status['cursor'], 'ReviewTask');
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['id'] === 'ReviewTask');
+    assert.ok(el, 'element with new ID should exist');
+    assert.equal(el?.['name'], 'Review');
+    const old = elements.find((e) => e['id'] === 'Activity_1');
+    assert.ok(!old, 'old ID should no longer exist');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update id updates incoming/outgoing flow references', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithTask(cwd);
+    await update(['id', 'ReviewTask'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const flows = proc['flows'] as Array<Record<string, unknown>>;
+    const flow = flows.find((f) => f['target'] === 'ReviewTask');
+    assert.ok(flow, 'flow targeting new ID should exist');
+    assert.equal(flow?.['source'], 'StartEvent_1');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update id does not update cursor when targeting non-cursor element explicitly', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupModel('proc', cwd);
+    await append(['user-task', 'Review'], cwd); // Activity_1, cursor → Activity_1
+    await append(['service-task', 'Execute'], cwd); // Activity_2, cursor → Activity_2
+    await update(['Activity_1', 'id', 'ReviewTask'], cwd); // rename Activity_1, cursor stays Activity_2
+
+    const { readState: rs } = await import('../state.js');
+    const state = rs(cwd);
+    assert.equal(state.cursor, 'Activity_2');
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    assert.ok(elements.find((e) => e['id'] === 'ReviewTask'), 'ReviewTask should exist');
+    assert.ok(elements.find((e) => e['id'] === 'Activity_2'), 'Activity_2 cursor should still exist');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update id rejects invalid ID format', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithTask(cwd);
+    await assert.rejects(() => update(['id', '123Invalid'], cwd), /Invalid ID/);
+    await assert.rejects(() => update(['id', 'has space'], cwd), /Invalid ID/);
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update id rejects duplicate ID', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupModel('proc', cwd);
+    await append(['user-task', 'Review'], cwd); // Activity_1
+    await append(['service-task', 'Execute'], cwd); // Activity_2
+    await assert.rejects(() => update(['id', 'Activity_1'], cwd), /already used/);
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update id allows underscore and dot in semantic ID', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithTask(cwd);
+    await update(['id', 'Order_Validation.Task'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    assert.ok(elements.find((e) => e['id'] === 'Order_Validation.Task'), 'semantic ID with dots/underscores should work');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update id allows hyphen in semantic ID', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithTask(cwd);
+    await update(['id', 'Order-Validation-Task'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    assert.ok(elements.find((e) => e['id'] === 'Order-Validation-Task'), 'semantic ID with hyphens should work');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update id renames a gateway element', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithGateway(cwd);
+    await update(['id', 'ApprovalDecision'], cwd);
+
+    const status = await getStatus(cwd);
+    assert.equal(status['cursor'], 'ApprovalDecision');
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['id'] === 'ApprovalDecision');
+    assert.ok(el, 'ApprovalDecision gateway should exist');
+    assert.equal(el?.['name'], 'Decision');
+    assert.ok(!elements.find((e) => e['id'] === 'Gateway_1'), 'old Gateway_1 ID should no longer exist');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update id with same ID is a no-op', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithTask(cwd);
+    await update(['id', 'Activity_1'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    assert.ok(elements.find((e) => e['id'] === 'Activity_1'), 'element should still exist with same ID');
   } finally {
     cleanup(cwd);
   }

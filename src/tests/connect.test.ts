@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { connect } from '../commands/connect.js';
 import { create } from '../commands/create.js';
 import { append } from '../commands/append.js';
+import { update } from '../commands/update.js';
 import { readState } from '../state.js';
 import { tmpDir, cleanup, setupModel, getStatus } from './helpers.js';
 
@@ -111,6 +112,44 @@ test('connect throws without required arguments', async () => {
     await setupModel('proc', cwd);
     await assert.rejects(() => connect(['StartEvent_1'], cwd), /Usage/);
     await assert.rejects(() => connect([], cwd), /Usage/);
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('connect works with semantic IDs set via --id flag', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupModel('proc', cwd);
+    await append(['user-task', 'Review', '--id', 'ReviewTask'], cwd);
+    await append(['exclusive-gateway', 'Decision', '--id', 'ApprovalDecision'], cwd);
+    await connect(['ReviewTask', 'ApprovalDecision'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const flows = proc['flows'] as Array<Record<string, unknown>>;
+    const flow = flows.find((f) => f['source'] === 'ReviewTask' && f['target'] === 'ApprovalDecision');
+    assert.ok(flow, 'flow between semantic IDs should exist');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('connect works with semantic IDs set via update id', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupModel('proc', cwd);
+    await append(['user-task', 'Review'], cwd); // Activity_1
+    await append(['exclusive-gateway', 'Decision'], cwd); // Gateway_1
+    await update(['Activity_1', 'id', 'ReviewTask'], cwd);
+    await update(['Gateway_1', 'id', 'ApprovalDecision'], cwd);
+    await connect(['ReviewTask', 'ApprovalDecision'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const flows = proc['flows'] as Array<Record<string, unknown>>;
+    const flow = flows.find((f) => f['source'] === 'ReviewTask' && f['target'] === 'ApprovalDecision');
+    assert.ok(flow, 'flow between renamed IDs should exist');
   } finally {
     cleanup(cwd);
   }

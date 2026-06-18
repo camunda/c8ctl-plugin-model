@@ -116,6 +116,85 @@ export function findContainerOf(definitions: ModdleElement, id: string): ModdleE
   return findContainerOfHelper(process, id);
 }
 
+// Validates user-supplied IDs against the xsd:ID production rule (BPMN 2.0 §7.5.1).
+// Re-exported via src/commands/args.ts so CLI validation uses the same pattern.
+export const BPMN_ID_PATTERN = /^[A-Za-z_][\w.-]*$/;
+
+function collectLaneIds(laneSet: ModdleElement, ids: Set<string>): void {
+  for (const lane of laneSet.lanes ?? []) {
+    if (lane.id) ids.add(lane.id as string);
+    if (lane.childLaneSet) collectLaneIds(lane.childLaneSet, ids);
+  }
+}
+
+function collectAllIds(definitions: ModdleElement): Set<string> {
+  const ids = new Set<string>();
+  if (definitions.id) ids.add(definitions.id as string);
+  for (const re of definitions.rootElements ?? []) {
+    if (re.id) ids.add(re.id as string);
+    for (const el of collectAllFlowElements(re)) {
+      if (el.id) ids.add(el.id as string);
+      // Collect IDs from event definitions (e.g. ErrorEventDefinition_1)
+      for (const ed of el.eventDefinitions ?? []) {
+        if (ed.id) ids.add(ed.id as string);
+      }
+    }
+    for (const art of re.artifacts ?? []) {
+      if (art.id) ids.add(art.id as string);
+    }
+    // Collect IDs from lanes (e.g. Lane_1, nested lanes)
+    for (const ls of re.laneSets ?? []) {
+      if (ls.id) ids.add(ls.id as string);
+      collectLaneIds(ls, ids);
+    }
+  }
+  // Collect IDs from all DI diagrams and their plane elements
+  for (const diagram of definitions.diagrams ?? []) {
+    if (diagram.id) ids.add(diagram.id as string);
+    const plane = diagram.plane;
+    if (plane?.id) ids.add(plane.id as string);
+    for (const pe of plane?.planeElement ?? []) {
+      if (pe.id) ids.add(pe.id as string);
+    }
+  }
+  return ids;
+}
+
+export function renameElementId(
+  definitions: ModdleElement,
+  el: ModdleElement,
+  newId: string,
+): void {
+  if (!BPMN_ID_PATTERN.test(newId)) {
+    throw new Error(
+      `Invalid ID '${newId}'. IDs must match xsd:ID format: ` +
+      `start with a letter or underscore, followed by letters, digits, underscores, hyphens, or dots.`,
+    );
+  }
+
+  const oldId = el.id as string;
+  if (newId === oldId) return;
+
+  const allIds = collectAllIds(definitions);
+  if (allIds.has(newId)) {
+    throw new Error(`ID '${newId}' is already used by another element`);
+  }
+  if (allIds.has(`${newId}_di`)) {
+    throw new Error(`ID '${newId}_di' is already used by a DI element — choose a different ID`);
+  }
+  el.id = newId;
+
+  // Update the corresponding DI shape or edge ID across all diagrams
+  for (const diagram of definitions.diagrams ?? []) {
+    const diElement = (diagram.plane?.planeElement ?? []).find(
+      (pe: ModdleElement) => pe.id === `${oldId}_di`,
+    );
+    if (diElement) {
+      diElement.id = `${newId}_di`;
+    }
+  }
+}
+
 function normalizeBpmnType(type: string): string {
   const camel = type.replace(/-([a-z])/g, (_: string, c: string) => c.toUpperCase());
   const capitalized = camel.charAt(0).toUpperCase() + camel.slice(1);

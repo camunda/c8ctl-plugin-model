@@ -157,14 +157,16 @@ test('append supports multi-word labels', async () => {
   }
 });
 
-test('append throws when source element not found', async () => {
+test('append treats unresolvable last token as part of label', async () => {
   const cwd = tmpDir();
   try {
     await setupModel('proc', cwd);
-    await assert.rejects(
-      () => append(['user-task', 'Task', 'Activity_99'], cwd),
-      /not found/,
-    );
+    await append(['user-task', 'Task', 'Activity_99'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    assert.ok(elements.find((e) => e['name'] === 'Task Activity_99'), 'unresolvable token should be part of label');
   } finally {
     cleanup(cwd);
   }
@@ -270,6 +272,72 @@ test('append throws without required arguments', async () => {
     await setupModel('proc', cwd);
     await assert.rejects(() => append(['user-task'], cwd), /Usage/);
     await assert.rejects(() => append([], cwd), /Usage/);
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+
+// --- --id flag ---
+
+test('append --id sets semantic element ID', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupModel('proc', cwd);
+    await append(['user-task', 'Review', '--id', 'ReviewTask'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    assert.ok(elements.find((e) => e['id'] === 'ReviewTask'), 'ReviewTask element should exist');
+    const state = readState(cwd);
+    assert.equal(state.cursor, 'ReviewTask');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('append --id rejects invalid ID format', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupModel('proc', cwd);
+    await assert.rejects(() => append(['user-task', 'Review', '--id', '1invalid'], cwd), /Invalid ID/);
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('append --id rejects duplicate ID', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupModel('proc', cwd);
+    await assert.rejects(() => append(['user-task', 'Review', '--id', 'StartEvent_1'], cwd), /already used/);
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('append --id without value throws error', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupModel('proc', cwd);
+    await assert.rejects(() => append(['user-task', 'Review', '--id'], cwd), /--id requires a value/);
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('append accepts semantic sourceElementId', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupModel('proc', cwd);
+    await append(['user-task', 'Review', '--id', 'ReviewTask'], cwd);
+    await append(['service-task', 'Execute', 'ReviewTask'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const flows = proc['flows'] as Array<Record<string, unknown>>;
+    assert.ok(flows.find((f) => f['source'] === 'ReviewTask'), 'flow from semantic source ID should exist');
   } finally {
     cleanup(cwd);
   }
