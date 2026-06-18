@@ -449,13 +449,15 @@ test('update throws for unknown property', async () => {
   }
 });
 
-test('update throws when element not found', async () => {
+test('update treats unresolvable first arg as property name', async () => {
   const cwd = tmpDir();
   try {
     await setupWithTask(cwd);
+    // Activity_99 does not exist, so it is not treated as an element ID —
+    // it falls through as the property name and fails with "Unknown property".
     await assert.rejects(
       () => update(['Activity_99', 'name', 'X'], cwd),
-      /not found/,
+      /Unknown property/,
     );
   } finally {
     cleanup(cwd);

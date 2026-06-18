@@ -13,14 +13,19 @@ function looksLikeProperty(s: string): boolean {
 }
 
 export async function update(args: string[], cwd: string, logger?: CommandLogger): Promise<void> {
+  const state = readState();
+  const { moddle, definitions } = await loadFile(state.file);
+
   let targetId: string | undefined;
   let remaining = args;
 
-  // If first positional looks like a BPMN ID (not a property name) and there
-  // are at least 3 args (elementId + property + value), treat it as an explicit
-  // element target. This supports both auto-generated IDs (Activity_1) and
-  // semantic IDs (ReviewTask, ApprovalDecision).
-  if (args.length >= 3 && BPMN_ID_PATTERN.test(args[0]) && looksLikeProperty(args[1])) {
+  // If first positional looks like a BPMN ID (not a property name), has at
+  // least 3 args (elementId + property + value), AND actually resolves to an
+  // existing element, treat it as an explicit element target. The existence
+  // check prevents mis-parsing `update name id verification` as
+  // elementId="name", prop="id".
+  if (args.length >= 3 && BPMN_ID_PATTERN.test(args[0]) && looksLikeProperty(args[1])
+      && getElementById(definitions, args[0])) {
     targetId = args[0];
     remaining = args.slice(1);
   }
@@ -37,10 +42,7 @@ export async function update(args: string[], cwd: string, logger?: CommandLogger
     );
   }
 
-  const state = readState();
   const resolvedId = targetId ?? state.cursor;
-
-  const { moddle, definitions } = await loadFile(state.file);
   const el = getElementById(definitions, resolvedId);
   if (!el) throw new Error(`Element '${resolvedId}' not found`);
 
