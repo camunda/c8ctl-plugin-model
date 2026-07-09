@@ -159,8 +159,12 @@ export function recomputeLayout(moddle: BpmnModdle, definitions: ModdleElement):
     const subShape = shapeMap.get(el.id as string);
     if (!subShape) continue;
 
+    const childBoundaryEvents: ModdleElement[] = (el.flowElements ?? []).filter(
+      (c: ModdleElement) => c.$type === 'bpmn:BoundaryEvent',
+    );
+    const childBoundaryIds = new Set(childBoundaryEvents.map((c: ModdleElement) => c.id as string));
     const childEls: ModdleElement[] = (el.flowElements ?? []).filter(
-      (c: ModdleElement) => c.$type !== 'bpmn:SequenceFlow',
+      (c: ModdleElement) => c.$type !== 'bpmn:SequenceFlow' && !childBoundaryIds.has(c.id),
     );
     const childFlows: ModdleElement[] = (el.flowElements ?? []).filter(
       (c: ModdleElement) => c.$type === 'bpmn:SequenceFlow',
@@ -232,6 +236,25 @@ export function recomputeLayout(moddle: BpmnModdle, definitions: ModdleElement):
       ceShape.bounds.y = ceCenterY - ceSize.height / 2;
       ceShape.bounds.width = ceSize.width;
       ceShape.bounds.height = ceSize.height;
+    }
+
+    const childHostBoundaryCount = new Map<string, number>();
+    for (const be of childBoundaryEvents) {
+      const hostId: string = be.attachedToRef?.id ?? be.attachedToRef;
+      const cp = cPos.get(hostId);
+      const beShape = shapeMap.get(be.id as string);
+      if (!cp || !beShape) continue;
+      const hostEl = childEls.find((c: ModdleElement) => c.id === hostId);
+      const hostSize = hostEl ? size(hostEl) : SIZES['default'];
+      const index = childHostBoundaryCount.get(hostId) ?? 0;
+      childHostBoundaryCount.set(hostId, index + 1);
+      const beSize = 36;
+      const hostCenterX = subLeft + CHILD_PAD + cp.col * CH_GAP;
+      const hostCenterY = subTop + CHILD_PAD + cp.row * CV_GAP;
+      beShape.bounds.x = hostCenterX - hostSize.width / 2 + 20 + index * 50 - beSize / 2;
+      beShape.bounds.y = hostCenterY + hostSize.height / 2 - beSize / 2;
+      beShape.bounds.width = beSize;
+      beShape.bounds.height = beSize;
     }
 
     for (const cf of childFlows) {

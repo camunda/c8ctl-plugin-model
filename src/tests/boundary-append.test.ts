@@ -1,7 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { addChild } from '../commands/add-child.js';
 import { append } from '../commands/append.js';
 import { readState } from '../state.js';
+import { loadFile } from '../bpmn.js';
 import { tmpDir, cleanup, setupModel, getStatus } from './helpers.js';
 
 async function setupWithTask(cwd: string): Promise<void> {
@@ -264,6 +266,73 @@ test('boundary-append accepts semantic hostElementId', async () => {
     const elements = proc['elements'] as Array<Record<string, unknown>>;
     const be = elements.find((e) => e['type'] === 'boundaryEvent');
     assert.equal(be?.['attachedToRef'], 'ReviewTask', 'boundary event should be attached to semantic host ID');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+// --- nested host (inside subprocess / ad-hoc-subprocess) ---
+
+test('boundary-append on nested host places event inside subprocess flowElements', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupModel('proc', cwd);
+    await append(['sub-process', 'My Sub'], cwd); // Activity_1, cursor → Activity_1
+    await addChild(['service-task', 'Tool A'], cwd); // Activity_2, cursor → Activity_2
+    await boundaryAppend(['error', 'Tool Error'], cwd); // BoundaryEvent_1, attached to Activity_2
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const rootElements = proc['elements'] as Array<Record<string, unknown>>;
+
+    // boundary event must NOT appear at root level
+    assert.ok(!rootElements.some((e) => e['type'] === 'boundaryEvent'), 'boundary event should not be in root flowElements');
+
+    // boundary event must appear inside the subprocess
+    const sub = rootElements.find((e) => e['id'] === 'Activity_1');
+    const children = sub?.['children'] as Array<Record<string, unknown>>;
+    const be = children?.find((c) => c['type'] === 'boundaryEvent');
+    assert.ok(be, 'boundary event should be in subprocess children');
+    assert.equal(be?.['attachedToRef'], 'Activity_2');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('boundary-append on nested host produces non-zero DI bounds', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupModel('proc', cwd);
+    await append(['sub-process', 'My Sub'], cwd);
+    await addChild(['service-task', 'Tool A'], cwd); // Activity_2
+    await boundaryAppend(['error', 'Tool Error'], cwd); // BoundaryEvent_1
+
+    const state = readState();
+    const { definitions } = await loadFile(state.file);
+    const plane = definitions.diagrams?.[0]?.plane;
+    const beShape = (plane?.planeElement ?? []).find(
+      (pe: Record<string, unknown>) => (pe['bpmnElement'] as Record<string, unknown>)?.['id'] === 'BoundaryEvent_1',
+    );
+    assert.ok(beShape, 'BoundaryEvent_1 DI shape should exist');
+    const bounds = beShape?.['bounds'] as Record<string, unknown>;
+    assert.ok(bounds?.['x'] !== 0 || bounds?.['y'] !== 0, 'boundary event should not be stuck at (0,0)');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('boundary-append on nested host: select-parent reaches the subprocess', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupModel('proc', cwd);
+    await append(['sub-process', 'My Sub'], cwd); // Activity_1
+    await addChild(['service-task', 'Tool A'], cwd); // Activity_2
+    await boundaryAppend(['error', 'Tool Error'], cwd); // BoundaryEvent_1, cursor → BoundaryEvent_1
+
+    const { selectParent } = await import('../commands/select-parent.js');
+    await selectParent([], cwd);
+    const state = readState();
+    assert.equal(state.cursor, 'Activity_1', 'select-parent from nested boundary event should reach subprocess');
   } finally {
     cleanup(cwd);
   }
