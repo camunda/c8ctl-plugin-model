@@ -260,21 +260,17 @@ export function recomputeLayout(moddle: BpmnModdle, definitions: ModdleElement):
     for (const cf of childFlows) {
       const srcId: string = cf.sourceRef?.id ?? cf.sourceRef;
       const tgtId: string = cf.targetRef?.id ?? cf.targetRef;
-      const scp = cPos.get(srcId);
-      const tcp = cPos.get(tgtId);
       const edge = edgeMap.get(cf.id as string);
-      if (!edge || !scp || !tcp) continue;
-      const srcEl = childEls.find((c: ModdleElement) => c.id === srcId);
-      const tgtEl = childEls.find((c: ModdleElement) => c.id === tgtId);
-      const srcSize = srcEl ? size(srcEl) : SIZES['default'];
-      const tgtSize = tgtEl ? size(tgtEl) : SIZES['default'];
-      const sCX = subLeft + CHILD_PAD + scp.col * CH_GAP;
-      const sCY = subTop + CHILD_PAD + scp.row * CV_GAP;
-      const tCX = subLeft + CHILD_PAD + tcp.col * CH_GAP;
-      const tCY = subTop + CHILD_PAD + tcp.row * CV_GAP;
+      const srcShape = shapeMap.get(srcId);
+      const tgtShape = shapeMap.get(tgtId);
+      if (!edge || !srcShape || !tgtShape) continue;
+      const sCX = srcShape.bounds.x + srcShape.bounds.width / 2;
+      const sCY = srcShape.bounds.y + srcShape.bounds.height / 2;
+      const tCX = tgtShape.bounds.x + tgtShape.bounds.width / 2;
+      const tCY = tgtShape.bounds.y + tgtShape.bounds.height / 2;
       edge.waypoint = [
-        moddle.create('dc:Point', { x: sCX + srcSize.width / 2, y: sCY }),
-        moddle.create('dc:Point', { x: tCX - tgtSize.width / 2, y: tCY }),
+        moddle.create('dc:Point', { x: sCX + srcShape.bounds.width / 2, y: sCY }),
+        moddle.create('dc:Point', { x: tCX - tgtShape.bounds.width / 2, y: tCY }),
       ];
     }
   }

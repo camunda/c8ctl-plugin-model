@@ -314,8 +314,11 @@ test('boundary-append on nested host produces non-zero DI bounds', async () => {
       (pe: Record<string, unknown>) => (pe['bpmnElement'] as Record<string, unknown>)?.['id'] === 'BoundaryEvent_1',
     );
     assert.ok(beShape, 'BoundaryEvent_1 DI shape should exist');
-    const bounds = beShape?.['bounds'] as Record<string, unknown>;
-    assert.ok(bounds?.['x'] !== 0 || bounds?.['y'] !== 0, 'boundary event should not be stuck at (0,0)');
+    const bounds = beShape['bounds'] as Record<string, unknown>;
+    assert.ok(bounds, 'BoundaryEvent_1 should have bounds');
+    assert.equal(typeof bounds['x'], 'number', 'bounds.x should be a number');
+    assert.equal(typeof bounds['y'], 'number', 'bounds.y should be a number');
+    assert.ok((bounds['x'] as number) !== 0 || (bounds['y'] as number) !== 0, 'boundary event should not be stuck at (0,0)');
   } finally {
     cleanup(cwd);
   }
