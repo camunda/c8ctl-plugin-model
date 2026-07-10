@@ -1,7 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { append } from '../commands/append.js';
-import { appendFreezeCursor } from '../commands/append-freeze-cursor.js';
 import { readState } from '../state.js';
 import { tmpDir, cleanup, setupModel, getStatus } from './helpers.js';
 
@@ -55,7 +54,7 @@ for (const [type, expectedType] of ELEMENT_TYPES) {
     try {
       await setupModel('proc', cwd);
       const stateBefore = readState();
-      await appendFreezeCursor([type, 'My Label'], cwd);
+      await append(['--freeze-cursor',type, 'My Label'], cwd);
 
       const stateAfter = readState();
       assert.equal(stateAfter.cursor, stateBefore.cursor, 'cursor must not move');
@@ -75,7 +74,7 @@ test('append-freeze-cursor creates sequence flow from source', async () => {
   const cwd = tmpDir();
   try {
     await setupModel('proc', cwd);
-    await appendFreezeCursor(['end-event', 'End'], cwd);
+    await append(['--freeze-cursor','end-event', 'End'], cwd);
 
     const status = await getStatus(cwd);
     const proc = status['process'] as Record<string, unknown>;
@@ -92,7 +91,7 @@ test('append-freeze-cursor with explicit sourceId uses that element', async () =
   try {
     await setupModel('proc', cwd);
     await append(['exclusive-gateway', 'Decision'], cwd); // cursor → Gateway_1
-    await appendFreezeCursor(['end-event', 'Rejected', 'StartEvent_1'], cwd); // from StartEvent_1, cursor stays at Gateway_1
+    await append(['--freeze-cursor','end-event', 'Rejected', 'StartEvent_1'], cwd); // from StartEvent_1, cursor stays at Gateway_1
 
     const state = readState();
     assert.equal(state.cursor, 'Gateway_1');
@@ -107,14 +106,17 @@ test('append-freeze-cursor with explicit sourceId uses that element', async () =
   }
 });
 
-test('append-freeze-cursor throws when source not found', async () => {
+test('append-freeze-cursor unresolvable last token treated as part of label', async () => {
   const cwd = tmpDir();
   try {
     await setupModel('proc', cwd);
-    await assert.rejects(
-      () => appendFreezeCursor(['user-task', 'Task', 'Activity_99'], cwd),
-      /not found/,
-    );
+    await append(['--freeze-cursor', 'user-task', 'Task', 'Activity_99'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['name'] === 'Task Activity_99');
+    assert.ok(el, 'unresolvable token becomes part of label');
   } finally {
     cleanup(cwd);
   }
@@ -124,8 +126,8 @@ test('append-freeze-cursor throws without required arguments', async () => {
   const cwd = tmpDir();
   try {
     await setupModel('proc', cwd);
-    await assert.rejects(() => appendFreezeCursor(['user-task'], cwd), /Usage/);
-    await assert.rejects(() => appendFreezeCursor([], cwd), /Usage/);
+    await assert.rejects(() => append(['--freeze-cursor','user-task'], cwd), /Usage/);
+    await assert.rejects(() => append(['--freeze-cursor',], cwd), /Usage/);
   } finally {
     cleanup(cwd);
   }

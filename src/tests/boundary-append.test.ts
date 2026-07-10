@@ -1,7 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { append } from '../commands/append.js';
-import { boundaryAppend } from '../commands/boundary-append.js';
 import { readState } from '../state.js';
 import { tmpDir, cleanup, setupModel, getStatus } from './helpers.js';
 
@@ -24,7 +23,7 @@ for (const type of INTERRUPTING_TYPES) {
     const cwd = tmpDir();
     try {
       await setupWithTask(cwd);
-      await boundaryAppend([type, 'My Boundary'], cwd);
+      await append(['--boundary',type, 'My Boundary'], cwd);
 
       const status = await getStatus(cwd);
       const proc = status['process'] as Record<string, unknown>;
@@ -45,7 +44,7 @@ for (const type of NON_INTERRUPTING_TYPES) {
     const cwd = tmpDir();
     try {
       await setupWithTask(cwd);
-      await boundaryAppend([type, 'My Boundary'], cwd);
+      await append(['--boundary',type, 'My Boundary'], cwd);
 
       const status = await getStatus(cwd);
       const proc = status['process'] as Record<string, unknown>;
@@ -64,7 +63,7 @@ test('boundary-append non-interrupting-compensation creates non-interrupting bou
   const cwd = tmpDir();
   try {
     await setupWithTask(cwd);
-    await boundaryAppend(['non-interrupting-compensation', 'Compensate'], cwd);
+    await append(['--boundary','non-interrupting-compensation', 'Compensate'], cwd);
 
     const status = await getStatus(cwd);
     const proc = status['process'] as Record<string, unknown>;
@@ -80,7 +79,7 @@ test('boundary-append moves cursor to new boundary event', async () => {
   const cwd = tmpDir();
   try {
     await setupWithTask(cwd);
-    await boundaryAppend(['timer', 'Timeout'], cwd);
+    await append(['--boundary','timer', 'Timeout'], cwd);
     const state = readState();
     assert.equal(state.cursor, 'BoundaryEvent_1');
   } finally {
@@ -93,7 +92,7 @@ test('boundary-append with explicit hostId attaches to specified element', async
   try {
     await setupWithTask(cwd); // Activity_1, cursor → Activity_1
     await append(['service-task', 'Execute'], cwd); // Activity_2, cursor → Activity_2
-    await boundaryAppend(['timer', 'Timeout', 'Activity_1'], cwd); // attach to Activity_1
+    await append(['--boundary','timer', 'Timeout', 'Activity_1'], cwd); // attach to Activity_1
 
     const status = await getStatus(cwd);
     const proc = status['process'] as Record<string, unknown>;
@@ -112,8 +111,8 @@ test('boundary-append multiple boundary events on same host spread horizontally'
   const cwd = tmpDir();
   try {
     await setupWithTask(cwd);
-    await boundaryAppend(['timer', 'Timeout'], cwd); // BoundaryEvent_1
-    await boundaryAppend(['non-interrupting-message', 'Escalation', 'Activity_1'], cwd); // BoundaryEvent_2
+    await append(['--boundary','timer', 'Timeout'], cwd); // BoundaryEvent_1
+    await append(['--boundary','non-interrupting-message', 'Escalation', 'Activity_1'], cwd); // BoundaryEvent_2
 
     const status = await getStatus(cwd);
     const proc = status['process'] as Record<string, unknown>;
@@ -131,7 +130,7 @@ test('boundary-append throws when host is not an activity', async () => {
   try {
     await setupModel('proc', cwd); // cursor on StartEvent_1
     await assert.rejects(
-      () => boundaryAppend(['timer', 'Timeout'], cwd),
+      () => append(['--boundary','timer', 'Timeout'], cwd),
       /boundary events can only be attached to activities/,
     );
   } finally {
@@ -144,7 +143,7 @@ test('boundary-append throws for non-interrupting-error', async () => {
   try {
     await setupWithTask(cwd);
     await assert.rejects(
-      () => boundaryAppend(['non-interrupting-error', 'Err'], cwd),
+      () => append(['--boundary','non-interrupting-error', 'Err'], cwd),
       /always interrupting/,
     );
   } finally {
@@ -157,7 +156,7 @@ test('boundary-append throws for non-interrupting-cancel', async () => {
   try {
     await setupWithTask(cwd);
     await assert.rejects(
-      () => boundaryAppend(['non-interrupting-cancel', 'Cancel'], cwd),
+      () => append(['--boundary','non-interrupting-cancel', 'Cancel'], cwd),
       /always interrupting/,
     );
   } finally {
@@ -170,7 +169,7 @@ test('boundary-append throws for plain compensation (must use non-interrupting- 
   try {
     await setupWithTask(cwd);
     await assert.rejects(
-      () => boundaryAppend(['compensation', 'Comp'], cwd),
+      () => append(['--boundary','compensation', 'Comp'], cwd),
       /always non-interrupting/,
     );
   } finally {
@@ -183,7 +182,7 @@ test('boundary-append throws for unknown event type', async () => {
   try {
     await setupWithTask(cwd);
     await assert.rejects(
-      () => boundaryAppend(['unknownType', 'Event'], cwd),
+      () => append(['--boundary','unknownType', 'Event'], cwd),
       /Unknown boundary event type/,
     );
   } finally {
@@ -195,7 +194,7 @@ test('boundary-append treats unresolvable last token as part of label', async ()
   const cwd = tmpDir();
   try {
     await setupWithTask(cwd);
-    await boundaryAppend(['timer', 'Timeout Activity_99'], cwd);
+    await append(['--boundary','timer', 'Timeout Activity_99'], cwd);
 
     const status = await getStatus(cwd);
     const proc = status['process'] as Record<string, unknown>;
@@ -211,7 +210,7 @@ test('boundary-append appended flow from boundary event works', async () => {
   const cwd = tmpDir();
   try {
     await setupWithTask(cwd);
-    await boundaryAppend(['timer', 'Timeout'], cwd); // BoundaryEvent_1, cursor → BoundaryEvent_1
+    await append(['--boundary','timer', 'Timeout'], cwd); // BoundaryEvent_1, cursor → BoundaryEvent_1
     await append(['end-event', 'Timed Out'], cwd); // from BoundaryEvent_1
 
     const status = await getStatus(cwd);
@@ -230,7 +229,7 @@ test('boundary-append --id sets semantic element ID', async () => {
   const cwd = tmpDir();
   try {
     await setupWithTask(cwd);
-    await boundaryAppend(['timer', 'Timeout', '--id', 'BoundaryEvent_Timeout'], cwd);
+    await append(['--boundary','timer', 'Timeout', '--id', 'BoundaryEvent_Timeout'], cwd);
 
     const status = await getStatus(cwd);
     const proc = status['process'] as Record<string, unknown>;
@@ -247,7 +246,7 @@ test('boundary-append --id rejects invalid ID', async () => {
   const cwd = tmpDir();
   try {
     await setupWithTask(cwd);
-    await assert.rejects(() => boundaryAppend(['timer', 'Timeout', '--id', '1bad'], cwd), /Invalid ID/);
+    await assert.rejects(() => append(['--boundary','timer', 'Timeout', '--id', '1bad'], cwd), /Invalid ID/);
   } finally {
     cleanup(cwd);
   }
@@ -258,7 +257,7 @@ test('boundary-append accepts semantic hostElementId', async () => {
   try {
     await setupModel('proc', cwd);
     await append(['user-task', 'Review', '--id', 'ReviewTask'], cwd);
-    await boundaryAppend(['timer', 'Timeout', 'ReviewTask'], cwd);
+    await append(['--boundary','timer', 'Timeout', 'ReviewTask'], cwd);
 
     const status = await getStatus(cwd);
     const proc = status['process'] as Record<string, unknown>;

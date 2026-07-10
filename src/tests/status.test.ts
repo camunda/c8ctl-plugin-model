@@ -1,7 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { append } from '../commands/append.js';
-import { boundaryAppend } from '../commands/boundary-append.js';
 import { update } from '../commands/update.js';
 import { tmpDir, cleanup, setupModel, getStatus } from './helpers.js';
 
@@ -90,8 +89,8 @@ test('status shows boundary event with attachedToRef and cancelActivity', async 
   try {
     await setupModel('proc', cwd);
     await append(['user-task', 'Review'], cwd); // Activity_1
-    await boundaryAppend(['timer', 'Timeout'], cwd); // BoundaryEvent_1 (interrupting)
-    await boundaryAppend(['non-interrupting-message', 'Escalation', 'Activity_1'], cwd); // BoundaryEvent_2
+    await append(['--boundary','timer', 'Timeout'], cwd); // BoundaryEvent_1 (interrupting)
+    await append(['--boundary','non-interrupting-message', 'Escalation', 'Activity_1'], cwd); // BoundaryEvent_2
 
     const status = await getStatus(cwd);
     const proc = status['process'] as Record<string, unknown>;

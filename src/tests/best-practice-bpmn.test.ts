@@ -21,16 +21,10 @@ import { readFileSync } from 'node:fs';
 
 import { init } from '../commands/init.js';
 import { append } from '../commands/append.js';
-import { appendFreezeCursor } from '../commands/append-freeze-cursor.js';
 import { create } from '../commands/create.js';
-import { createFreezeCursor } from '../commands/create-freeze-cursor.js';
 import { connect } from '../commands/connect.js';
-import { addChild } from '../commands/add-child.js';
-import { addChildFreezeCursor } from '../commands/add-child-freeze-cursor.js';
 import { select } from '../commands/select.js';
-import { selectParent } from '../commands/select-parent.js';
 import { selectFile } from '../commands/select-file.js';
-import { boundaryAppend } from '../commands/boundary-append.js';
 import { update } from '../commands/update.js';
 import { annotate } from '../commands/annotate.js';
 import { cursorStatus } from '../commands/cursor-status.js';
@@ -174,7 +168,7 @@ test('best-practice: exclusive gateway branching with conditions', async () => {
     await connect(['Gateway_1', 'Activity_2', '=approved'], cwd);
 
     // branch: rejected → end (use create-freeze-cursor to keep cursor)
-    await createFreezeCursor(['end-event', 'Rejected'], cwd);       // EndEvent_2
+    await create(['--freeze-cursor','end-event', 'Rejected'], cwd);       // EndEvent_2
     await connect(['Gateway_1', 'EndEvent_2', '=not(approved)'], cwd);
 
     // -- verify --
@@ -209,12 +203,12 @@ test('best-practice: parallel gateway fork and join', async () => {
     await append(['parallel-gateway', 'Fork'], cwd);                  // Gateway_1
 
     // branch A
-    await appendFreezeCursor(['service-task', 'Task A', 'Gateway_1'], cwd); // Activity_1
+    await append(['--freeze-cursor','service-task', 'Task A', 'Gateway_1'], cwd); // Activity_1
     await select(['Activity_1'], cwd);
     await update(['zeebe:taskDefinition.type', 'task-a'], cwd);
 
     // branch B
-    await appendFreezeCursor(['service-task', 'Task B', 'Gateway_1'], cwd); // Activity_2
+    await append(['--freeze-cursor','service-task', 'Task B', 'Gateway_1'], cwd); // Activity_2
     await select(['Activity_2'], cwd);
     await update(['zeebe:taskDefinition.type', 'task-b'], cwd);
 
@@ -256,17 +250,17 @@ test('best-practice: sub-process with boundary timer escalation', async () => {
     await init(['sub-process-demo'], cwd);
 
     await append(['sub-process', 'Handle Claim'], cwd);              // Activity_1
-    await addChild(['start-event', 'Begin'], cwd);                   // StartEvent_2
+    await create(['--parent','start-event', 'Begin'], cwd);                   // StartEvent_2
     await append(['service-task', 'Investigate'], cwd);              // Activity_2
     await update(['zeebe:taskDefinition.type', 'investigate'], cwd);
-    await selectParent([], cwd); // back to Activity_1 (sub-process)
-    await addChildFreezeCursor(['end-event', 'Resolved'], cwd);     // EndEvent_1
+    await select(['--parent'], cwd); // back to Activity_1 (sub-process)
+    await create(['--parent', '--freeze-cursor','end-event', 'Resolved'], cwd);     // EndEvent_1
     await connect(['Activity_2', 'EndEvent_1'], cwd);
 
-    await selectParent([], cwd); // back to Activity_1 (sub-process)
+    await select(['--parent'], cwd); // back to Activity_1 (sub-process)
 
     // boundary conditional → escalation path
-    await boundaryAppend(['non-interrupting-conditional', 'Condition Met'], cwd); // BoundaryEvent_1
+    await append(['--boundary','non-interrupting-conditional', 'Condition Met'], cwd); // BoundaryEvent_1
     await append(['service-task', 'Notify Manager'], cwd);           // Activity_3
     await update(['zeebe:taskDefinition.type', 'notify-manager'], cwd);
     await append(['end-event', 'Escalated'], cwd);                   // EndEvent_2
@@ -316,7 +310,7 @@ test('best-practice: event sub-process for global error handling', async () => {
 
     // event sub-process
     await create(['event-sub-process', 'Handle Failure'], cwd);      // Activity_2
-    await addChild(['error-start-event', 'On Error'], cwd);          // StartEvent_2
+    await create(['--parent','error-start-event', 'On Error'], cwd);          // StartEvent_2
     await append(['service-task', 'Rollback'], cwd);                 // Activity_3
     await update(['zeebe:taskDefinition.type', 'rollback'], cwd);
     await append(['end-event', 'Error Handled'], cwd);               // EndEvent_2
@@ -550,13 +544,13 @@ test('best-practice: ad-hoc sub-process with ordering', async () => {
     await append(['ad-hoc-sub-process', 'Handle Exceptions'], cwd); // Activity_1
     await update(['ad-hoc.ordering', 'Sequential'], cwd);
     await update(['ad-hoc.cancelRemainingInstances', 'false'], cwd);
-    await addChild(['service-task', 'Investigate'], cwd);               // Activity_2
+    await create(['--parent','service-task', 'Investigate'], cwd);               // Activity_2
     await update(['zeebe:taskDefinition.type', 'investigate'], cwd);
-    await selectParent([], cwd); // back to Activity_1
-    await addChild(['service-task', 'Escalate'], cwd);                  // Activity_3
+    await select(['--parent'], cwd); // back to Activity_1
+    await create(['--parent','service-task', 'Escalate'], cwd);                  // Activity_3
     await update(['zeebe:taskDefinition.type', 'escalate'], cwd);
 
-    await selectParent([], cwd); // back to Activity_1
+    await select(['--parent'], cwd); // back to Activity_1
     await append(['end-event', 'Resolved'], cwd);                    // EndEvent_1
 
     // -- verify --
@@ -593,7 +587,7 @@ test('best-practice: comprehensive event-based and message patterns', async () =
     // Service task with boundary error
     await append(['service-task', 'Validate'], cwd);                 // Activity_1
     await update(['zeebe:taskDefinition.type', 'validate'], cwd);
-    await boundaryAppend(['error', 'Validation Error'], cwd);       // BoundaryEvent_1
+    await append(['--boundary','error', 'Validation Error'], cwd);       // BoundaryEvent_1
     await append(['end-event', 'Validation Failed'], cwd);           // EndEvent_1
 
     // Continue main flow

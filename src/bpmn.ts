@@ -869,24 +869,6 @@ export function updateElementProperty(
     return;
   }
 
-  if (prop === 'zeebe:calledDecision.decisionId') {
-    if (el.$type !== 'bpmn:BusinessRuleTask') {
-      throw new Error(`'zeebe:calledDecision.decisionId' can only be set on business-rule-task`);
-    }
-    const cd = getOrCreateZeebeChild(moddle, el, 'zeebe:CalledDecision');
-    cd.decisionId = values[0];
-    return;
-  }
-
-  if (prop === 'zeebe:calledDecision.resultVariable') {
-    if (el.$type !== 'bpmn:BusinessRuleTask') {
-      throw new Error(`'zeebe:calledDecision.resultVariable' can only be set on business-rule-task`);
-    }
-    const cd = getOrCreateZeebeChild(moddle, el, 'zeebe:CalledDecision');
-    cd.resultVariable = values[0];
-    return;
-  }
-
   if (prop === 'zeebe:property') {
     const [name, value] = values;
     const props = getOrCreateZeebeChild(moddle, el, 'zeebe:Properties');
@@ -1030,18 +1012,185 @@ export function updateElementProperty(
     return;
   }
 
+  if (prop.startsWith('zeebe:assignmentDefinition.')) {
+    if (el.$type !== 'bpmn:UserTask') {
+      throw new Error(`'${prop}' can only be set on user tasks`);
+    }
+    const key = prop.slice('zeebe:assignmentDefinition.'.length);
+    const validKeys = ['assignee', 'candidateGroups', 'candidateUsers'];
+    if (!validKeys.includes(key)) {
+      throw new Error(
+        `Unknown zeebe:assignmentDefinition property '${key}'. Supported: ${validKeys.join(', ')}`,
+      );
+    }
+    const ad = getOrCreateZeebeChild(moddle, el, 'zeebe:AssignmentDefinition');
+    ad[key] = values[0];
+    return;
+  }
+
+  if (prop.startsWith('zeebe:taskSchedule.')) {
+    if (el.$type !== 'bpmn:UserTask') {
+      throw new Error(`'${prop}' can only be set on user tasks`);
+    }
+    const key = prop.slice('zeebe:taskSchedule.'.length);
+    const validKeys = ['dueDate', 'followUpDate'];
+    if (!validKeys.includes(key)) {
+      throw new Error(
+        `Unknown zeebe:taskSchedule property '${key}'. Supported: ${validKeys.join(', ')}`,
+      );
+    }
+    const ts = getOrCreateZeebeChild(moddle, el, 'zeebe:TaskSchedule');
+    ts[key] = values[0];
+    return;
+  }
+
+  if (prop === 'zeebe:priorityDefinition.priority') {
+    if (el.$type !== 'bpmn:UserTask') {
+      throw new Error(`'zeebe:priorityDefinition.priority' can only be set on user tasks`);
+    }
+    const pd = getOrCreateZeebeChild(moddle, el, 'zeebe:PriorityDefinition');
+    pd.priority = values[0];
+    return;
+  }
+
+  if (prop.startsWith('zeebe:script.')) {
+    if (el.$type !== 'bpmn:ScriptTask') {
+      throw new Error(`'${prop}' can only be set on script tasks`);
+    }
+    const key = prop.slice('zeebe:script.'.length);
+    const validKeys = ['expression', 'resultVariable'];
+    if (!validKeys.includes(key)) {
+      throw new Error(
+        `Unknown zeebe:script property '${key}'. Supported: ${validKeys.join(', ')}`,
+      );
+    }
+    const sc = getOrCreateZeebeChild(moddle, el, 'zeebe:Script');
+    sc[key] = values[0];
+    return;
+  }
+
+  if (prop.startsWith('zeebe:calledDecision.')) {
+    if (el.$type !== 'bpmn:BusinessRuleTask') {
+      throw new Error(`'${prop}' can only be set on business-rule-task`);
+    }
+    const key = prop.slice('zeebe:calledDecision.'.length);
+    const validKeys = ['decisionId', 'resultVariable', 'bindingType', 'versionTag'];
+    if (!validKeys.includes(key)) {
+      throw new Error(
+        `Unknown zeebe:calledDecision property '${key}'. Supported: ${validKeys.join(', ')}`,
+      );
+    }
+    const cd = getOrCreateZeebeChild(moddle, el, 'zeebe:CalledDecision');
+    cd[key] = values[0];
+    return;
+  }
+
+  if (prop.startsWith('zeebe:calledElement.')) {
+    if (el.$type !== 'bpmn:CallActivity') {
+      throw new Error(`'${prop}' can only be set on call activities`);
+    }
+    const key = prop.slice('zeebe:calledElement.'.length);
+    const boolKeys = ['propagateAllChildVariables', 'propagateAllParentVariables'];
+    const validKeys = ['processId', 'processIdExpression', 'bindingType', 'versionTag', ...boolKeys];
+    if (!validKeys.includes(key)) {
+      throw new Error(
+        `Unknown zeebe:calledElement property '${key}'. Supported: ${validKeys.join(', ')}`,
+      );
+    }
+    const ce = getOrCreateZeebeChild(moddle, el, 'zeebe:CalledElement');
+    ce[key] = boolKeys.includes(key) ? values[0] !== 'false' : values[0];
+    return;
+  }
+
+  if (prop === 'zeebe:executionListener') {
+    assertActivity(el, prop);
+    const [eventType, type] = values;
+    if (!eventType || !type) {
+      throw new Error(`'zeebe:executionListener' requires eventType=type format`);
+    }
+    const container = getOrCreateZeebeChild(moddle, el, 'zeebe:ExecutionListeners');
+    const listener = moddle.create('zeebe:ExecutionListener', { eventType, type });
+    container.listeners = [...(container.listeners ?? []), listener];
+    return;
+  }
+
+  if (prop === 'zeebe:taskListener') {
+    if (el.$type !== 'bpmn:UserTask') {
+      throw new Error(`'zeebe:taskListener' can only be set on user tasks`);
+    }
+    const [eventType, type] = values;
+    if (!eventType || !type) {
+      throw new Error(`'zeebe:taskListener' requires eventType=type format`);
+    }
+    const container = getOrCreateZeebeChild(moddle, el, 'zeebe:TaskListeners');
+    const listener = moddle.create('zeebe:TaskListener', { eventType, type });
+    container.listeners = [...(container.listeners ?? []), listener];
+    return;
+  }
+
+  if (prop === 'zeebe:subscription.correlationKey') {
+    const eventDefs: ModdleElement[] = el.eventDefinitions ?? [];
+    const msgDef = eventDefs.find((d: ModdleElement) => d.$type === 'bpmn:MessageEventDefinition');
+    if (!msgDef) {
+      throw new Error(`'zeebe:subscription.correlationKey' requires a message event definition`);
+    }
+    const sub = getOrCreateZeebeChild(moddle, el, 'zeebe:Subscription');
+    sub.correlationKey = values[0];
+    return;
+  }
+
+  if (prop.startsWith('zeebe:conditionalFilter.')) {
+    const key = prop.slice('zeebe:conditionalFilter.'.length);
+    const validKeys = ['variableNames', 'variableEvents'];
+    if (!validKeys.includes(key)) {
+      throw new Error(
+        `Unknown zeebe:conditionalFilter property '${key}'. Supported: ${validKeys.join(', ')}`,
+      );
+    }
+    const eventDefs: ModdleElement[] = el.eventDefinitions ?? [];
+    const condDef = eventDefs.find((d: ModdleElement) => d.$type === 'bpmn:ConditionalEventDefinition');
+    if (!condDef) {
+      throw new Error(`'${prop}' requires an element with a conditional event definition`);
+    }
+    const filter = getOrCreateZeebeChild(moddle, condDef, 'zeebe:ConditionalFilter');
+    filter[key] = values[0];
+    return;
+  }
+
+  if (prop === 'zeebe:linkedResource') {
+    assertActivity(el, prop);
+    const [resourceId, resourceType] = values;
+    if (!resourceId || !resourceType) {
+      throw new Error(`'zeebe:linkedResource' requires resourceId=resourceType format`);
+    }
+    const container = getOrCreateZeebeChild(moddle, el, 'zeebe:LinkedResources');
+    const resource = moddle.create('zeebe:LinkedResource', { resourceId, resourceType });
+    container.values = [...(container.values ?? []), resource];
+    return;
+  }
+
   throw new Error(
     `Unknown property '${prop}'. Supported: name, signalRef, messageRef, ` +
     `zeebe:taskDefinition.type, zeebe:taskDefinition.retries, ` +
-    `zeebe:calledDecision.decisionId, zeebe:calledDecision.resultVariable, ` +
     `zeebe:input, zeebe:output, zeebe:header, zeebe:property, zeebe:userTask.disabled, ` +
+    `zeebe:assignmentDefinition.assignee, zeebe:assignmentDefinition.candidateGroups, zeebe:assignmentDefinition.candidateUsers, ` +
+    `zeebe:taskSchedule.dueDate, zeebe:taskSchedule.followUpDate, ` +
+    `zeebe:priorityDefinition.priority, ` +
+    `zeebe:script.expression, zeebe:script.resultVariable, ` +
+    `zeebe:formDefinition.formId, zeebe:formDefinition.formKey, zeebe:formDefinition.externalReference, ` +
+    `zeebe:formDefinition.bindingType, zeebe:formDefinition.versionTag, ` +
+    `zeebe:calledDecision.decisionId, zeebe:calledDecision.resultVariable, zeebe:calledDecision.bindingType, zeebe:calledDecision.versionTag, ` +
+    `zeebe:calledElement.processId, zeebe:calledElement.processIdExpression, ` +
+    `zeebe:calledElement.propagateAllChildVariables, zeebe:calledElement.propagateAllParentVariables, ` +
+    `zeebe:calledElement.bindingType, zeebe:calledElement.versionTag, ` +
+    `zeebe:executionListener, zeebe:taskListener, ` +
+    `zeebe:subscription.correlationKey, zeebe:conditionalFilter.variableNames, zeebe:conditionalFilter.variableEvents, ` +
+    `zeebe:linkedResource, ` +
     `isInterrupting, multi-instance.type, ` +
     `zeebe:loopCharacteristics.inputCollection, zeebe:loopCharacteristics.inputElement, ` +
     `zeebe:loopCharacteristics.outputCollection, zeebe:loopCharacteristics.outputElement, ` +
     `ad-hoc.ordering, ad-hoc.cancelRemainingInstances, ` +
     `timer.timeDuration, timer.timeCycle, timer.timeDate, ` +
-    `zeebe:formDefinition.formId, zeebe:formDefinition.formKey, zeebe:formDefinition.externalReference, ` +
-    `zeebe:formDefinition.bindingType, zeebe:formDefinition.versionTag, ` +
     `zeebe:adHoc.outputCollection, zeebe:adHoc.outputElement, zeebe:adHoc.activeElementsCollection`,
   );
 }
@@ -1068,11 +1217,6 @@ function extractZeebe(el: ModdleElement): Record<string, unknown> | undefined {
       result['taskHeaders'] = (v.values ?? []).map((h: ModdleElement) => ({ key: h.key, value: h.value }));
     } else if (type === 'zeebe:Properties') {
       result['properties'] = (v.properties ?? []).map((p: ModdleElement) => ({ name: p.name, value: p.value }));
-    } else if (type === 'zeebe:CalledDecision') {
-      const cd: Record<string, string> = {};
-      if (v.decisionId != null) cd['decisionId'] = v.decisionId;
-      if (v.resultVariable != null) cd['resultVariable'] = v.resultVariable;
-      if (Object.keys(cd).length > 0) result['calledDecision'] = cd;
     } else if (type === 'zeebe:UserTask') {
       result['userTask'] = true;
     } else if (type === 'zeebe:LoopCharacteristics') {
@@ -1096,6 +1240,51 @@ function extractZeebe(el: ModdleElement): Record<string, unknown> | undefined {
       if (v.outputElement != null) ah['outputElement'] = v.outputElement;
       if (v.activeElementsCollection != null) ah['activeElementsCollection'] = v.activeElementsCollection;
       if (Object.keys(ah).length > 0) result['adHoc'] = ah;
+    } else if (type === 'zeebe:AssignmentDefinition') {
+      const ad: Record<string, string> = {};
+      if (v.assignee != null) ad['assignee'] = v.assignee;
+      if (v.candidateGroups != null) ad['candidateGroups'] = v.candidateGroups;
+      if (v.candidateUsers != null) ad['candidateUsers'] = v.candidateUsers;
+      if (Object.keys(ad).length > 0) result['assignmentDefinition'] = ad;
+    } else if (type === 'zeebe:TaskSchedule') {
+      const ts: Record<string, string> = {};
+      if (v.dueDate != null) ts['dueDate'] = v.dueDate;
+      if (v.followUpDate != null) ts['followUpDate'] = v.followUpDate;
+      if (Object.keys(ts).length > 0) result['taskSchedule'] = ts;
+    } else if (type === 'zeebe:PriorityDefinition') {
+      if (v.priority != null) result['priorityDefinition'] = { priority: v.priority };
+    } else if (type === 'zeebe:Script') {
+      const sc: Record<string, string> = {};
+      if (v.expression != null) sc['expression'] = v.expression;
+      if (v.resultVariable != null) sc['resultVariable'] = v.resultVariable;
+      if (Object.keys(sc).length > 0) result['script'] = sc;
+    } else if (type === 'zeebe:CalledElement') {
+      const ce: Record<string, unknown> = {};
+      if (v.processId != null) ce['processId'] = v.processId;
+      if (v.processIdExpression != null) ce['processIdExpression'] = v.processIdExpression;
+      if (v.propagateAllChildVariables != null) ce['propagateAllChildVariables'] = v.propagateAllChildVariables;
+      if (v.propagateAllParentVariables != null) ce['propagateAllParentVariables'] = v.propagateAllParentVariables;
+      if (v.bindingType != null) ce['bindingType'] = v.bindingType;
+      if (v.versionTag != null) ce['versionTag'] = v.versionTag;
+      if (Object.keys(ce).length > 0) result['calledElement'] = ce;
+    } else if (type === 'zeebe:ExecutionListeners') {
+      const listeners = (v.listeners ?? []).map((l: ModdleElement) => ({ eventType: l.eventType, type: l.type }));
+      if (listeners.length > 0) result['executionListeners'] = listeners;
+    } else if (type === 'zeebe:TaskListeners') {
+      const listeners = (v.listeners ?? []).map((l: ModdleElement) => ({ eventType: l.eventType, type: l.type }));
+      if (listeners.length > 0) result['taskListeners'] = listeners;
+    } else if (type === 'zeebe:Subscription') {
+      if (v.correlationKey != null) result['subscription'] = { correlationKey: v.correlationKey };
+    } else if (type === 'zeebe:LinkedResources') {
+      const resources = (v.values ?? []).map((r: ModdleElement) => ({ resourceId: r.resourceId, resourceType: r.resourceType }));
+      if (resources.length > 0) result['linkedResources'] = resources;
+    } else if (type === 'zeebe:CalledDecision') {
+      const cd: Record<string, string> = {};
+      if (v.decisionId != null) cd['decisionId'] = v.decisionId;
+      if (v.resultVariable != null) cd['resultVariable'] = v.resultVariable;
+      if (v.bindingType != null) cd['bindingType'] = v.bindingType;
+      if (v.versionTag != null) cd['versionTag'] = v.versionTag;
+      if (Object.keys(cd).length > 0) result['calledDecision'] = cd;
     }
   }
 
@@ -1125,6 +1314,14 @@ export function toEventDefinitionJson(defs: ModdleElement[]): Record<string, unk
   }
   if (def.timeDate?.body !== undefined) {
     result['timerDate'] = def.timeDate.body;
+  }
+  const condFilterValues: ModdleElement[] = def.extensionElements?.values ?? [];
+  const condFilter = condFilterValues.find((v: ModdleElement) => v.$type === 'zeebe:ConditionalFilter');
+  if (condFilter) {
+    const cf: Record<string, string> = {};
+    if (condFilter.variableNames != null) cf['variableNames'] = condFilter.variableNames;
+    if (condFilter.variableEvents != null) cf['variableEvents'] = condFilter.variableEvents;
+    if (Object.keys(cf).length > 0) result['conditionalFilter'] = cf;
   }
 
   return result;

@@ -1,7 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { append } from '../commands/append.js';
-import { boundaryAppend } from '../commands/boundary-append.js';
 import { create } from '../commands/create.js';
 import { update } from '../commands/update.js';
 import { tmpDir, cleanup, setupModel, getStatus } from './helpers.js';
@@ -918,7 +917,7 @@ test('update ad-hoc.cancelRemainingInstances true', async () => {
 async function setupWithTimerBoundary(cwd: string): Promise<void> {
   await setupModel('proc', cwd);
   await append(['user-task', 'Review'], cwd); // Activity_1
-  await boundaryAppend(['timer', 'Timeout'], cwd); // BoundaryEvent_1, cursor → BoundaryEvent_1
+  await append(['--boundary','timer', 'Timeout'], cwd); // BoundaryEvent_1, cursor → BoundaryEvent_1
 }
 
 test('update timer.timeDuration sets duration on boundary timer event', async () => {
@@ -1261,7 +1260,7 @@ test('update timer.timeDuration on non-interrupting timer boundary event', async
   try {
     await setupModel('proc', cwd);
     await append(['user-task', 'Review'], cwd); // Activity_1
-    await boundaryAppend(['non-interrupting-timer', 'Escalate'], cwd); // BoundaryEvent_1
+    await append(['--boundary','non-interrupting-timer', 'Escalate'], cwd); // BoundaryEvent_1
 
     await update(['timer.timeDuration', 'PT2H'], cwd);
 
@@ -1281,7 +1280,7 @@ test('update timer.timeDuration with explicit elementId targeting', async () => 
   try {
     await setupModel('proc', cwd);
     await append(['user-task', 'Review'], cwd); // Activity_1
-    await boundaryAppend(['timer', 'Timeout'], cwd); // BoundaryEvent_1, cursor → BoundaryEvent_1
+    await append(['--boundary','timer', 'Timeout'], cwd); // BoundaryEvent_1, cursor → BoundaryEvent_1
     await append(['user-task', 'Approve'], cwd); // Activity_2, cursor → Activity_2
 
     await update(['BoundaryEvent_1', 'timer.timeDuration', 'PT30M'], cwd);
@@ -1376,7 +1375,7 @@ test('update timer.timeDuration throws on message boundary event', async () => {
   try {
     await setupModel('proc', cwd);
     await append(['user-task', 'Review'], cwd); // Activity_1
-    await boundaryAppend(['message', 'Msg'], cwd); // BoundaryEvent_1 (message, not timer)
+    await append(['--boundary','message', 'Msg'], cwd); // BoundaryEvent_1 (message, not timer)
 
     await assert.rejects(
       () => update(['timer.timeDuration', 'PT1H'], cwd),
@@ -1392,7 +1391,7 @@ test('update timer.timeDuration throws on error boundary event', async () => {
   try {
     await setupModel('proc', cwd);
     await append(['user-task', 'Review'], cwd); // Activity_1
-    await boundaryAppend(['error', 'Err'], cwd); // BoundaryEvent_1 (error, not timer)
+    await append(['--boundary','error', 'Err'], cwd); // BoundaryEvent_1 (error, not timer)
 
     await assert.rejects(
       () => update(['timer.timeDuration', 'PT1H'], cwd),
@@ -1955,6 +1954,313 @@ test('update id with same ID is a no-op', async () => {
     const proc = status['process'] as Record<string, unknown>;
     const elements = proc['elements'] as Array<Record<string, unknown>>;
     assert.ok(elements.find((e) => e['id'] === 'Activity_1'), 'element should still exist with same ID');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+// --- Flag-based interface ---
+
+test('update --task-type flag sets zeebe:taskDefinition.type', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithTask(cwd);
+    await update(['--task-type', 'my-worker'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['id'] === 'Activity_1');
+    const zeebe = el?.['zeebe'] as Record<string, unknown>;
+    assert.equal((zeebe?.['taskDefinition'] as Record<string, unknown>)?.['type'], 'my-worker');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update --name flag renames cursor element', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithTask(cwd);
+    await update(['--name', 'Renamed Task'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['id'] === 'Activity_1');
+    assert.equal(el?.['name'], 'Renamed Task');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update Activity_1 --task-type with explicit element ID and flag', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithTask(cwd);
+    await append(['service-task', 'Other'], cwd); // Activity_2, cursor moves
+    await update(['Activity_1', '--task-type', 'worker-a'], cwd); // target Activity_1 explicitly
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['id'] === 'Activity_1');
+    const zeebe = el?.['zeebe'] as Record<string, unknown>;
+    assert.equal((zeebe?.['taskDefinition'] as Record<string, unknown>)?.['type'], 'worker-a');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update --input flag repeated adds multiple input mappings', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithTask(cwd);
+    await update(['--input', '=vars.x=localX', '--input', '=vars.y=localY'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['id'] === 'Activity_1');
+    const zeebe = el?.['zeebe'] as Record<string, unknown>;
+    const inputs = (zeebe?.['ioMapping'] as Record<string, unknown>)?.['inputs'] as Array<Record<string, unknown>>;
+    assert.equal(inputs?.length, 2);
+    assert.ok(inputs?.find((i) => i['source'] === '=vars.x' && i['target'] === 'localX'));
+    assert.ok(inputs?.find((i) => i['source'] === '=vars.y' && i['target'] === 'localY'));
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update --assignee sets zeebe:assignmentDefinition.assignee on user-task', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithTask(cwd);
+    await update(['--assignee', '=user.name'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['id'] === 'Activity_1');
+    const zeebe = el?.['zeebe'] as Record<string, unknown>;
+    assert.equal((zeebe?.['assignmentDefinition'] as Record<string, unknown>)?.['assignee'], '=user.name');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update --execution-listener adds listener to activity', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithTask(cwd);
+    await update(['--execution-listener', 'start=my-listener'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['id'] === 'Activity_1');
+    const zeebe = el?.['zeebe'] as Record<string, unknown>;
+    const listeners = zeebe?.['executionListeners'] as Array<Record<string, unknown>>;
+    assert.equal(listeners?.length, 1);
+    assert.equal(listeners?.[0]?.['eventType'], 'start');
+    assert.equal(listeners?.[0]?.['type'], 'my-listener');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update --script-expression sets zeebe:script.expression on script-task', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupModel('proc', cwd);
+    await append(['script-task', 'Compute'], cwd); // Activity_1
+    await update(['--script-expression', '=a + b', '--script-result-var', 'result'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['id'] === 'Activity_1');
+    const zeebe = el?.['zeebe'] as Record<string, unknown>;
+    const script = zeebe?.['script'] as Record<string, unknown>;
+    assert.equal(script?.['expression'], '=a + b');
+    assert.equal(script?.['resultVariable'], 'result');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update --called-process-id sets zeebe:calledElement.processId on call-activity', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupModel('proc', cwd);
+    await append(['call-activity', 'Call Sub'], cwd); // Activity_1
+    await update(['--called-process-id', 'my-subprocess'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['id'] === 'Activity_1');
+    const zeebe = el?.['zeebe'] as Record<string, unknown>;
+    assert.equal((zeebe?.['calledElement'] as Record<string, unknown>)?.['processId'], 'my-subprocess');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+// --- Inline Zeebe flags on append/create ---
+
+test('append service-task --task-type sets job type inline', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupModel('proc', cwd);
+    await append(['service-task', 'Deploy', '--task-type', 'deploy-service'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['id'] === 'Activity_1');
+    const zeebe = el?.['zeebe'] as Record<string, unknown>;
+    assert.equal((zeebe?.['taskDefinition'] as Record<string, unknown>)?.['type'], 'deploy-service');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('create user-task --name flag sets label', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupModel('proc', cwd);
+    await create(['user-task', '--name', 'My Review Task'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['id'] === 'Activity_1');
+    assert.equal(el?.['name'], 'My Review Task');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+// --- New Zeebe property cases ---
+
+test('update zeebe:assignmentDefinition candidateGroups and candidateUsers', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithTask(cwd);
+    await update(['zeebe:assignmentDefinition.candidateGroups', '=groups'], cwd);
+    await update(['zeebe:assignmentDefinition.candidateUsers', '=users'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['id'] === 'Activity_1');
+    const zeebe = el?.['zeebe'] as Record<string, unknown>;
+    const ad = zeebe?.['assignmentDefinition'] as Record<string, unknown>;
+    assert.equal(ad?.['candidateGroups'], '=groups');
+    assert.equal(ad?.['candidateUsers'], '=users');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update zeebe:taskSchedule.dueDate and followUpDate', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupWithTask(cwd);
+    await update(['zeebe:taskSchedule.dueDate', '=now() + duration("P1D")'], cwd);
+    await update(['zeebe:taskSchedule.followUpDate', '=now()'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['id'] === 'Activity_1');
+    const zeebe = el?.['zeebe'] as Record<string, unknown>;
+    const ts = zeebe?.['taskSchedule'] as Record<string, unknown>;
+    assert.equal(ts?.['dueDate'], '=now() + duration("P1D")');
+    assert.equal(ts?.['followUpDate'], '=now()');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update zeebe:calledDecision.bindingType and versionTag', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupModel('proc', cwd);
+    await append(['business-rule-task', 'Evaluate Risk'], cwd); // Activity_1
+    await update(['zeebe:calledDecision.decisionId', 'risk-decision'], cwd);
+    await update(['zeebe:calledDecision.bindingType', 'versionTag'], cwd);
+    await update(['zeebe:calledDecision.versionTag', '1.0.0'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['id'] === 'Activity_1');
+    const zeebe = el?.['zeebe'] as Record<string, unknown>;
+    const cd = zeebe?.['calledDecision'] as Record<string, unknown>;
+    assert.equal(cd?.['bindingType'], 'versionTag');
+    assert.equal(cd?.['versionTag'], '1.0.0');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update zeebe:calledElement.processId and propagateAllChildVariables', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupModel('proc', cwd);
+    await append(['call-activity', 'Call Sub'], cwd); // Activity_1
+    await update(['zeebe:calledElement.processId', 'my-sub'], cwd);
+    await update(['zeebe:calledElement.propagateAllChildVariables', 'false'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['id'] === 'Activity_1');
+    const zeebe = el?.['zeebe'] as Record<string, unknown>;
+    const ce = zeebe?.['calledElement'] as Record<string, unknown>;
+    assert.equal(ce?.['processId'], 'my-sub');
+    assert.equal(ce?.['propagateAllChildVariables'], false);
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update zeebe:subscription.correlationKey on message event', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupModel('proc', cwd);
+    await append(['message-intermediate-catch-event', 'Wait for Reply'], cwd);
+    await update(['zeebe:subscription.correlationKey', '=order.id'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['id'] === 'Event_1');
+    const zeebe = el?.['zeebe'] as Record<string, unknown>;
+    assert.equal((zeebe?.['subscription'] as Record<string, unknown>)?.['correlationKey'], '=order.id');
+  } finally {
+    cleanup(cwd);
+  }
+});
+
+test('update zeebe:linkedResource adds linked resource to service-task', async () => {
+  const cwd = tmpDir();
+  try {
+    await setupModel('proc', cwd);
+    await append(['service-task', 'Execute'], cwd); // Activity_1
+    await update(['zeebe:linkedResource', 'form-123', 'camunda-forms'], cwd);
+
+    const status = await getStatus(cwd);
+    const proc = status['process'] as Record<string, unknown>;
+    const elements = proc['elements'] as Array<Record<string, unknown>>;
+    const el = elements.find((e) => e['id'] === 'Activity_1');
+    const zeebe = el?.['zeebe'] as Record<string, unknown>;
+    const resources = zeebe?.['linkedResources'] as Array<Record<string, unknown>>;
+    assert.equal(resources?.length, 1);
+    assert.equal(resources?.[0]?.['resourceId'], 'form-123');
+    assert.equal(resources?.[0]?.['resourceType'], 'camunda-forms');
   } finally {
     cleanup(cwd);
   }

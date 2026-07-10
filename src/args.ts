@@ -31,6 +31,16 @@ export function flagString(flags: Record<string, string | boolean>, key: string)
   return typeof v === 'string' ? v : undefined;
 }
 
+export function flagStrings(args: string[], flag: string): string[] {
+  const result: string[] = [];
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === `--${flag}` && i + 1 < args.length && !args[i + 1].startsWith('--')) {
+      result.push(args[i + 1]);
+    }
+  }
+  return result;
+}
+
 export interface EventRefFlags {
   signalName?: string;
   messageName?: string;

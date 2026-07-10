@@ -94,8 +94,7 @@ test('connect throws when elements are in different scopes', async () => {
     // Select Activity_1 first
     const { select } = await import('../commands/select.js');
     await select(['Activity_1'], cwd);
-    const { addChild } = await import('../commands/add-child.js');
-    await addChild(['start-event', 'Inner Start'], cwd); // StartEvent_2 inside Activity_1
+    await create(['--parent', 'start-event', 'Inner Start'], cwd); // StartEvent_2 inside Activity_1
 
     await assert.rejects(
       () => connect(['StartEvent_2', 'EndEvent_1'], cwd),

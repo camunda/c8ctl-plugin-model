@@ -1,7 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { create } from '../commands/create.js';
-import { createFreezeCursor } from '../commands/create-freeze-cursor.js';
 import { readState } from '../state.js';
 import { tmpDir, cleanup, setupModel, getStatus } from './helpers.js';
 
@@ -109,7 +108,7 @@ test('create-freeze-cursor adds element without moving cursor', async () => {
   try {
     await setupModel('proc', cwd);
     const stateBefore = readState();
-    await createFreezeCursor(['end-event', 'Orphan End'], cwd);
+    await create(['--freeze-cursor','end-event', 'Orphan End'], cwd);
 
     const stateAfter = readState();
     assert.equal(stateAfter.cursor, stateBefore.cursor, 'cursor must not move');
@@ -127,8 +126,8 @@ test('create-freeze-cursor throws without required arguments', async () => {
   const cwd = tmpDir();
   try {
     await setupModel('proc', cwd);
-    await assert.rejects(() => createFreezeCursor(['user-task'], cwd), /Usage/);
-    await assert.rejects(() => createFreezeCursor([], cwd), /Usage/);
+    await assert.rejects(() => create(['--freeze-cursor','user-task'], cwd), /Usage/);
+    await assert.rejects(() => create(['--freeze-cursor',], cwd), /Usage/);
   } finally {
     cleanup(cwd);
   }
