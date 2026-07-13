@@ -572,7 +572,8 @@ export function addBoundaryEvent(moddle, definitions, eventType, name, hostId) {
         eventDefinitions: [eventDef],
         outgoing: [],
     });
-    process.flowElements = [...(process.flowElements ?? []), boundaryEvent];
+    const container = findContainerOf(definitions, hostId) ?? process;
+    container.flowElements = [...(container.flowElements ?? []), boundaryEvent];
     const diagram = definitions.diagrams?.[0];
     const plane = diagram?.plane;
     if (plane) {
