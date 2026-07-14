@@ -21,17 +21,13 @@ c8ctl model <subcommand> [args]
 | Subcommand | Description |
 | --- | --- |
 | `init <name>` | Create a new process model |
-| `append <type> <label> [sourceId]` | Append an element after cursor with a sequence flow; cursor moves to new element |
-| `append-freeze-cursor <type> <label> [sourceId]` | Same as `append` but cursor does not move |
-| `create <type> <label>` | Create a standalone element (no sequence flow); cursor moves to new element |
-| `create-freeze-cursor <type> <label>` | Same as `create` but cursor does not move |
+| `append <type> <label> [sourceId] [--freeze-cursor] [--boundary] [--id <id>] [flags…]` | Append an element after cursor with a sequence flow; `--boundary` attaches a boundary event to the host instead; `--freeze-cursor` keeps cursor |
+| `create <type> <label> [--parent] [--freeze-cursor] [--id <id>] [flags…]` | Create a standalone element (no sequence flow); `--parent` adds as child of cursor sub-process; `--freeze-cursor` keeps cursor |
 | `connect <sourceId> <targetId> [condition]` | Create a sequence flow between two elements; cursor moves to target |
-| `add-child <type> <label>` | Add a child element inside the cursor sub-process; cursor moves to new element |
-| `add-child-freeze-cursor <type> <label>` | Add a child element inside the cursor sub-process without moving the cursor |
-| `select-parent` | Move the cursor to the parent sub-process of the active element |
-| `boundary-append <type> <label> [hostId]` | Attach a boundary event to an activity; cursor moves to new event |
-| `update [elementId] <property> <value...>` | Update a BPMN or Zeebe property on the cursor element |
+| `update [elementId] <property> <value...>` | Update a BPMN or Zeebe property on the cursor element (positional style) |
+| `update [elementId] --<flag> <value> ...` | Update one or more properties via flags (see flag table below) |
 | `select <elementId>` | Move the cursor to a specific element |
+| `select --parent` | Move the cursor to the parent sub-process of the active element |
 | `select-file <path>` | Switch the active BPMN file |
 | `cursor-status` | Print the current cursor element |
 | `status` | Print a compact JSON view of the semantic model |
@@ -43,19 +39,19 @@ c8ctl model <subcommand> [args]
 c8ctl model init my-process
 c8ctl model append user-task "Review Application"
 c8ctl model append exclusive-gateway "Approved?"
-c8ctl model append-freeze-cursor end-event Rejected Gateway_1
+c8ctl model append --freeze-cursor end-event Rejected Gateway_1
 c8ctl model create event-sub-process "Handle Error"
-c8ctl model add-child error-start-event "On Error"
-c8ctl model add-child service-task "Compensate"
-c8ctl model select-parent
+c8ctl model create --parent error-start-event "On Error"
+c8ctl model create --parent service-task "Compensate"
+c8ctl model select --parent
 c8ctl model create end-event "Alternate End"
 c8ctl model connect Gateway_1 EndEvent_1 "=approved"
 c8ctl model append sub-process "Handle Exception"
-c8ctl model add-child start-event Start
-c8ctl model add-child-freeze-cursor end-event End
-c8ctl model select-parent
-c8ctl model boundary-append timer Timeout
-c8ctl model boundary-append non-interrupting-message Escalation Activity_1
+c8ctl model create --parent start-event Start
+c8ctl model create --parent --freeze-cursor end-event End
+c8ctl model select --parent
+c8ctl model append --boundary timer Timeout
+c8ctl model append --boundary non-interrupting-message Escalation Activity_1
 c8ctl model update zeebe:taskDefinition.type my-job-type
 c8ctl model update Activity_2 name "Send Approval"
 c8ctl model update zeebe:input "=vars.x" localX
@@ -79,7 +75,7 @@ npm test
 
 ## Coverage
 
-### Element types — `append` / `append-freeze-cursor` / `create` / `create-freeze-cursor`
+### Element types — `append` / `create` (with `--parent` for child elements)
 
 #### Tasks
 
@@ -156,7 +152,7 @@ npm test
 | `compensation-end-event` | `EndEvent` |
 | `cancel-end-event` | `EndEvent` |
 
-### Boundary event types — `boundary-append`
+### Boundary event types — `append --boundary`
 
 | Type | Interrupting |
 | --- | --- |
@@ -178,19 +174,40 @@ Host element must be an activity (`task`, `user-task`, `service-task`, `script-t
 
 ### Update properties — `update`
 
+Both invocation styles target the cursor element by default; prefix with an element ID to target a different element.
+
+#### Positional style
+
+```sh
+c8ctl model update [elementId] <property> <value...>
+```
+
 | Property | Value args | Upsert key | Notes |
 | --- | --- | --- | --- |
 | `name` | `<name>` | — | — |
+| `id` | `<new-id>` | — | Renames the element ID; cursor updates if cursor was on that element |
+| `signalRef` | `<signal-name>` | — | — |
+| `messageRef` | `<message-name>` | — | — |
+| `isInterrupting` | `true` \| `false` | — | Sets interrupting flag on start events inside event sub-processes; default `true` |
 | `zeebe:taskDefinition.type` | `<type>` | — | — |
 | `zeebe:taskDefinition.retries` | `<count>` | — | — |
-| `zeebe:calledDecision.decisionId` | `<decisionId>` | — | Only on `business-rule-task` |
-| `zeebe:calledDecision.resultVariable` | `<variable>` | — | Only on `business-rule-task` |
 | `zeebe:input` | `<source> <target>` | target | — |
 | `zeebe:output` | `<source> <target>` | source | — |
 | `zeebe:header` | `<key> <value>` | key | — |
 | `zeebe:property` | `<name> <value>` | name | — |
 | `zeebe:userTask.disabled` | `true` \| `false` | — | Only on `user-task`; `true` removes the `<zeebe:userTask />` marker (reverts to job-worker behavior) |
-| `isInterrupting` | `true` \| `false` | — | Sets interrupting flag on start events inside event sub-processes; default `true` |
+| `zeebe:calledDecision.decisionId` | `<decisionId>` | — | Only on `business-rule-task` |
+| `zeebe:calledDecision.resultVariable` | `<variable>` | — | Only on `business-rule-task` |
+| `zeebe:calledDecision.bindingType` | `latest` \| `deployment` \| `versionTag` | — | Only on `business-rule-task` |
+| `zeebe:calledDecision.versionTag` | `<tag>` | — | Only on `business-rule-task`; meaningful when `bindingType=versionTag` |
+| `zeebe:formDefinition.formId` | `<formId>` | — | Only on `user-task`; sets `formId` on `<zeebe:formDefinition>` (Camunda Form); clears `formKey`/`externalReference` |
+| `zeebe:formDefinition.formKey` | `<formKey>` | — | Only on `user-task`; sets `formKey` (legacy key); clears `formId`/`externalReference` |
+| `zeebe:formDefinition.externalReference` | `<url>` | — | Only on `user-task`; sets `externalReference`; clears `formId`/`formKey` |
+| `zeebe:formDefinition.bindingType` | `latest` \| `deployment` \| `versionTag` | — | Only on `user-task` |
+| `zeebe:formDefinition.versionTag` | `<tag>` | — | Only on `user-task`; meaningful when `bindingType=versionTag` |
+| `timer.timeDuration` | `<ISO-8601>` | — | — |
+| `timer.timeCycle` | `<ISO-8601>` | — | — |
+| `timer.timeDate` | `<ISO-8601>` | — | — |
 | `multi-instance.type` | `parallel` \| `sequential` | — | Creates or updates `bpmn:MultiInstanceLoopCharacteristics`; set this before zeebe loop properties |
 | `zeebe:loopCharacteristics.inputCollection` | `<expression>` | — | Requires `multi-instance.type` to be set first |
 | `zeebe:loopCharacteristics.inputElement` | `<variable>` | — | — |
@@ -198,14 +215,73 @@ Host element must be an activity (`task`, `user-task`, `service-task`, `script-t
 | `zeebe:loopCharacteristics.outputElement` | `<expression>` | — | — |
 | `ad-hoc.ordering` | `Sequential` \| `Parallel` | — | Only on `ad-hoc-sub-process` elements |
 | `ad-hoc.cancelRemainingInstances` | `true` \| `false` | — | Only on `ad-hoc-sub-process` elements; default `true` |
-| `zeebe:formDefinition.formId` | `<formId>` | — | Only on `user-task`; sets `formId` on `<zeebe:formDefinition>` (Camunda Form); clears `formKey`/`externalReference` |
-| `zeebe:formDefinition.formKey` | `<formKey>` | — | Only on `user-task`; sets `formKey` (legacy key); clears `formId`/`externalReference` |
-| `zeebe:formDefinition.externalReference` | `<url>` | — | Only on `user-task`; sets `externalReference`; clears `formId`/`formKey` |
-| `zeebe:formDefinition.bindingType` | `latest` \| `deployment` \| `versionTag` | — | Only on `user-task` |
-| `zeebe:formDefinition.versionTag` | `<tag>` | — | Only on `user-task`; meaningful when `bindingType=versionTag` |
 | `zeebe:adHoc.outputCollection` | `<variable-name>` | — | Only on `ad-hoc-sub-process`; sets `outputCollection` on `<zeebe:adHoc>` |
 | `zeebe:adHoc.outputElement` | `<FEEL-expression>` | — | Only on `ad-hoc-sub-process`; sets `outputElement` on `<zeebe:adHoc>` |
 | `zeebe:adHoc.activeElementsCollection` | `<FEEL-expression>` | — | Only on `ad-hoc-sub-process`; sets `activeElementsCollection` on `<zeebe:adHoc>` |
+
+#### Flag style
+
+```sh
+c8ctl model update [elementId] --<flag> <value> [--<flag> <value> ...]
+```
+
+Flags marked **repeated** may be specified multiple times (e.g. `--input "=src=target"`). Key-value flags use `=` as the last separator.
+
+| Flag | Property | Repeated | Notes |
+| --- | --- | --- | --- |
+| `--name <value>` | `name` | — | — |
+| `--task-type <value>` | `zeebe:taskDefinition.type` | — | — |
+| `--task-retries <count>` | `zeebe:taskDefinition.retries` | — | — |
+| `--input <source>=<target>` | `zeebe:input` | yes | — |
+| `--output <source>=<target>` | `zeebe:output` | yes | — |
+| `--header <key>=<value>` | `zeebe:header` | yes | — |
+| `--ext-property <name>=<value>` | `zeebe:property` | yes | — |
+| `--assignee <value>` | `zeebe:assignmentDefinition.assignee` | — | Only on `user-task` |
+| `--candidate-groups <value>` | `zeebe:assignmentDefinition.candidateGroups` | — | Only on `user-task` |
+| `--candidate-users <value>` | `zeebe:assignmentDefinition.candidateUsers` | — | Only on `user-task` |
+| `--due-date <value>` | `zeebe:taskSchedule.dueDate` | — | Only on `user-task` |
+| `--follow-up-date <value>` | `zeebe:taskSchedule.followUpDate` | — | Only on `user-task` |
+| `--priority <value>` | `zeebe:priorityDefinition.priority` | — | Only on `user-task` |
+| `--user-task-disabled true\|false` | `zeebe:userTask.disabled` | — | Only on `user-task` |
+| `--form-id <value>` | `zeebe:formDefinition.formId` | — | Clears `formKey`/`externalReference` |
+| `--form-key <value>` | `zeebe:formDefinition.formKey` | — | Clears `formId`/`externalReference` |
+| `--form-external-ref <url>` | `zeebe:formDefinition.externalReference` | — | Clears `formId`/`formKey` |
+| `--form-binding-type latest\|deployment\|versionTag` | `zeebe:formDefinition.bindingType` | — | — |
+| `--form-version-tag <tag>` | `zeebe:formDefinition.versionTag` | — | — |
+| `--script-expression <expr>` | `zeebe:script.expression` | — | Only on `script-task` |
+| `--script-result-var <var>` | `zeebe:script.resultVariable` | — | Only on `script-task` |
+| `--decision-id <id>` | `zeebe:calledDecision.decisionId` | — | Only on `business-rule-task` |
+| `--decision-result <var>` | `zeebe:calledDecision.resultVariable` | — | Only on `business-rule-task` |
+| `--decision-binding-type latest\|deployment\|versionTag` | `zeebe:calledDecision.bindingType` | — | — |
+| `--decision-version-tag <tag>` | `zeebe:calledDecision.versionTag` | — | — |
+| `--called-process-id <id>` | `zeebe:calledElement.processId` | — | Only on `call-activity` |
+| `--called-process-id-expr <expr>` | `zeebe:calledElement.processIdExpression` | — | Only on `call-activity` |
+| `--propagate-all-child-vars true\|false` | `zeebe:calledElement.propagateAllChildVariables` | — | Only on `call-activity` |
+| `--propagate-all-parent-vars true\|false` | `zeebe:calledElement.propagateAllParentVariables` | — | Only on `call-activity` |
+| `--called-binding-type latest\|deployment\|versionTag` | `zeebe:calledElement.bindingType` | — | Only on `call-activity` |
+| `--called-version-tag <tag>` | `zeebe:calledElement.versionTag` | — | Only on `call-activity` |
+| `--execution-listener <event>=<type>` | `zeebe:executionListener` | yes | — |
+| `--task-listener <event>=<type>` | `zeebe:taskListener` | yes | Only on `user-task` |
+| `--signal-name <name>` | `signalRef` | — | — |
+| `--message-name <name>` | `messageRef` | — | — |
+| `--correlation-key <expr>` | `zeebe:subscription.correlationKey` | — | Only on message events |
+| `--is-interrupting true\|false` | `isInterrupting` | — | — |
+| `--time-duration <ISO-8601>` | `timer.timeDuration` | — | — |
+| `--time-cycle <ISO-8601>` | `timer.timeCycle` | — | — |
+| `--time-date <ISO-8601>` | `timer.timeDate` | — | — |
+| `--condition-variable-names <value>` | `zeebe:conditionalFilter.variableNames` | — | Only on conditional events |
+| `--condition-variable-events <value>` | `zeebe:conditionalFilter.variableEvents` | — | Only on conditional events |
+| `--multi-instance parallel\|sequential` | `multi-instance.type` | — | — |
+| `--loop-input-collection <expr>` | `zeebe:loopCharacteristics.inputCollection` | — | — |
+| `--loop-input-element <var>` | `zeebe:loopCharacteristics.inputElement` | — | — |
+| `--loop-output-collection <var>` | `zeebe:loopCharacteristics.outputCollection` | — | — |
+| `--loop-output-element <expr>` | `zeebe:loopCharacteristics.outputElement` | — | — |
+| `--linked-resource <key>=<value>` | `zeebe:linkedResource` | yes | — |
+| `--adhoc-ordering Sequential\|Parallel` | `ad-hoc.ordering` | — | Only on `ad-hoc-sub-process` |
+| `--adhoc-cancel-remaining true\|false` | `ad-hoc.cancelRemainingInstances` | — | Only on `ad-hoc-sub-process` |
+| `--adhoc-output-collection <var>` | `zeebe:adHoc.outputCollection` | — | Only on `ad-hoc-sub-process` |
+| `--adhoc-output-element <expr>` | `zeebe:adHoc.outputElement` | — | Only on `ad-hoc-sub-process` |
+| `--adhoc-active-elements <expr>` | `zeebe:adHoc.activeElementsCollection` | — | Only on `ad-hoc-sub-process` |
 
 #### Event sub-process example
 
@@ -213,13 +289,13 @@ Host element must be an activity (`task`, `user-task`, `service-task`, `script-t
 # Create the event sub-process (no incoming flow)
 c8ctl model create event-sub-process "Handle Error"
 # Add a typed start event inside it
-c8ctl model add-child error-start-event "On Error"
+c8ctl model create --parent error-start-event "On Error"
 # Mark it non-interrupting (optional)
 c8ctl model update isInterrupting false
 # Build out the sub-process body
-c8ctl model append service-task "Compensate"
+c8ctl model create --parent service-task "Compensate"
 # Navigate back to the parent level
-c8ctl model select-parent
+c8ctl model select --parent
 ```
 
 #### Gateway branching with `connect`
@@ -258,14 +334,12 @@ c8ctl model add-child user-task "Escalate"
 | Command | Supported inputs | Notes |
 | --- | --- | --- |
 | `model init` | — | Creates process + `StartEvent_1`; throws if `.bpmn` or state already exists |
-| `model select` | any element id | Validates existence; throws if not found |
+| `model select <elementId>` | any element id | Validates existence; throws if not found |
+| `model select --parent` | — | Moves cursor to direct parent sub-process; throws if cursor is at top level |
 | `model select-file` | name or path | Auto-appends `.bpmn`; cursor preserved if element exists in new file, reset to first element otherwise |
-| `model select-parent` | — | Moves cursor to direct parent sub-process; throws if cursor is at top level |
-| `model create` | `<type> <label>` | Creates standalone element at process level (no sequence flow); cursor moves |
-| `model create-freeze-cursor` | `<type> <label>` | Same as `create` but cursor does not move |
+| `model create <type> <label>` | `[--parent] [--freeze-cursor] [--id <id>] [flags…]` | Creates standalone element at process level (no sequence flow); `--parent` adds as child of cursor sub-process; `--freeze-cursor` keeps cursor |
+| `model append <type> <label>` | `[sourceId] [--boundary] [--freeze-cursor] [--id <id>] [flags…]` | Appends element after cursor (or `sourceId`) with sequence flow; `--boundary` attaches a boundary event to the host instead; `--freeze-cursor` keeps cursor |
 | `model connect` | `<sourceId> <targetId> [condition]` | Creates sequence flow; cursor moves to target; optional FEEL condition |
-| `model add-child` | `<type> <label>` | Cursor must be on a `sub-process`; adds element inside it; cursor moves to new element |
-| `model add-child-freeze-cursor` | `<type> <label>` | Same as `add-child` but cursor does not move |
 | `model cursor-status` | — | JSON: `cursor`, `type`, `name`, `file` |
 | `model status` | — | JSON: elements + flows + Zeebe extensions; sub-process elements include `children` and `childFlows` |
 | `model reset` | — | Removes state file; keeps `.bpmn` |
