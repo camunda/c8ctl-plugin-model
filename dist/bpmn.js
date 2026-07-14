@@ -100,6 +100,82 @@ export function findContainerOf(definitions, id) {
     const process = getProcess(definitions);
     return findContainerOfHelper(process, id);
 }
+// Validates user-supplied IDs against the xsd:ID production rule (BPMN 2.0 §7.5.1).
+// Re-exported via src/commands/args.ts so CLI validation uses the same pattern.
+export const BPMN_ID_PATTERN = /^[A-Za-z_][\w.-]*$/;
+function collectLaneIds(laneSet, ids) {
+    for (const lane of laneSet.lanes ?? []) {
+        if (lane.id)
+            ids.add(lane.id);
+        if (lane.childLaneSet)
+            collectLaneIds(lane.childLaneSet, ids);
+    }
+}
+function collectAllIds(definitions) {
+    const ids = new Set();
+    if (definitions.id)
+        ids.add(definitions.id);
+    for (const re of definitions.rootElements ?? []) {
+        if (re.id)
+            ids.add(re.id);
+        for (const el of collectAllFlowElements(re)) {
+            if (el.id)
+                ids.add(el.id);
+            // Collect IDs from event definitions (e.g. ErrorEventDefinition_1)
+            for (const ed of el.eventDefinitions ?? []) {
+                if (ed.id)
+                    ids.add(ed.id);
+            }
+        }
+        for (const art of re.artifacts ?? []) {
+            if (art.id)
+                ids.add(art.id);
+        }
+        // Collect IDs from lanes (e.g. Lane_1, nested lanes)
+        for (const ls of re.laneSets ?? []) {
+            if (ls.id)
+                ids.add(ls.id);
+            collectLaneIds(ls, ids);
+        }
+    }
+    // Collect IDs from all DI diagrams and their plane elements
+    for (const diagram of definitions.diagrams ?? []) {
+        if (diagram.id)
+            ids.add(diagram.id);
+        const plane = diagram.plane;
+        if (plane?.id)
+            ids.add(plane.id);
+        for (const pe of plane?.planeElement ?? []) {
+            if (pe.id)
+                ids.add(pe.id);
+        }
+    }
+    return ids;
+}
+export function renameElementId(definitions, el, newId) {
+    if (!BPMN_ID_PATTERN.test(newId)) {
+        throw new Error(`Invalid ID '${newId}'. IDs must match xsd:ID format: ` +
+            `start with a letter or underscore, followed by letters, digits, underscores, hyphens, or dots.`);
+    }
+    const oldId = el.id;
+    if (newId === oldId)
+        return;
+    const allIds = collectAllIds(definitions);
+    if (allIds.has(newId)) {
+        throw new Error(`ID '${newId}' is already used by another element`);
+    }
+    if (allIds.has(`${newId}_di`)) {
+        throw new Error(`ID '${newId}_di' is already used by a DI element — choose a different ID`);
+    }
+    el.id = newId;
+    // Update the corresponding DI shape or edge ID across all diagrams
+    for (const diagram of definitions.diagrams ?? []) {
+        const diElement = (diagram.plane?.planeElement ?? []).find((pe) => pe.id === `${oldId}_di`);
+        if (diElement) {
+            diElement.id = `${newId}_di`;
+        }
+    }
+}
 function normalizeBpmnType(type) {
     const camel = type.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
     const capitalized = camel.charAt(0).toUpperCase() + camel.slice(1);
@@ -177,6 +253,12 @@ function parseElementType(type) {
             `signal-intermediate-catch-event, conditional-intermediate-catch-event, ` +
             `link-intermediate-catch-event`);
     }
+    if (type === 'intermediate-throw-event') {
+        throw new Error(`'intermediate-throw-event' is not supported — use a typed variant: ` +
+            `message-intermediate-throw-event, signal-intermediate-throw-event, ` +
+            `escalation-intermediate-throw-event, compensation-intermediate-throw-event, ` +
+            `link-intermediate-throw-event`);
+    }
     for (const { suffix, bpmnType, defs } of TYPED_EVENT_GROUPS) {
         if (type.endsWith(suffix)) {
             const trigger = type.slice(0, -suffix.length);
@@ -194,8 +276,14 @@ function parseElementType(type) {
 }
 function nextId(process, prefix) {
     let max = 0;
+    const pattern = new RegExp(`^${prefix}_(\\d+)$`);
     for (const el of collectAllFlowElements(process)) {
-        const m = el.id?.match(new RegExp(`^${prefix}_(\\d+)$`));
+        const m = el.id?.match(pattern);
+        if (m)
+            max = Math.max(max, parseInt(m[1], 10));
+    }
+    for (const art of (process.artifacts ?? [])) {
+        const m = art.id?.match(pattern);
         if (m)
             max = Math.max(max, parseInt(m[1], 10));
     }
@@ -220,7 +308,70 @@ function idPrefix(bpmnType) {
         return local.includes('Start') ? 'StartEvent' : local.includes('End') ? 'EndEvent' : 'Event';
     return 'Activity';
 }
-export function addElement(moddle, definitions, type, name, sourceId) {
+function addZeebeUserTaskMarker(moddle, el) {
+    const ext = getOrCreateExtensionElements(moddle, el);
+    const existing = (ext.values ?? []).find((v) => v.$type === 'zeebe:UserTask');
+    if (!existing) {
+        ext.values = [...(ext.values ?? []), moddle.create('zeebe:UserTask', {})];
+    }
+}
+/** Sanitize a user-provided name into a valid XML NCName for use as an id attribute. */
+function sanitizeId(name) {
+    return name.replace(/[^a-zA-Z0-9_.-]/g, '_').replace(/^([^a-zA-Z_])/, '_$1');
+}
+function uniqueRootId(definitions, base) {
+    const existing = new Set((definitions.rootElements ?? []).map((e) => e.id));
+    if (!existing.has(base))
+        return base;
+    let i = 1;
+    while (existing.has(`${base}_${i}`))
+        i++;
+    return `${base}_${i}`;
+}
+function getOrDeclareSignal(moddle, definitions, signalName) {
+    const existing = (definitions.rootElements ?? []).find((e) => e.$type === 'bpmn:Signal' && e.name === signalName);
+    if (existing)
+        return existing;
+    const id = uniqueRootId(definitions, `Signal_${sanitizeId(signalName)}`);
+    const signal = moddle.create('bpmn:Signal', { id, name: signalName });
+    definitions.rootElements = [...(definitions.rootElements ?? []), signal];
+    return signal;
+}
+function getOrDeclareMessage(moddle, definitions, messageName) {
+    const existing = (definitions.rootElements ?? []).find((e) => e.$type === 'bpmn:Message' && e.name === messageName);
+    if (existing)
+        return existing;
+    const id = uniqueRootId(definitions, `Message_${sanitizeId(messageName)}`);
+    const message = moddle.create('bpmn:Message', { id, name: messageName });
+    definitions.rootElements = [...(definitions.rootElements ?? []), message];
+    return message;
+}
+function applyEventRef(moddle, definitions, el, opts) {
+    const defs = el.eventDefinitions ?? [];
+    if (defs.length === 0) {
+        if (opts.signalName)
+            throw new Error(`--signal-name requires a signal event definition, but element '${el.id}' has none`);
+        if (opts.messageName)
+            throw new Error(`--message-name requires a message event definition, but element '${el.id}' has none`);
+        return;
+    }
+    const eventDef = defs[0];
+    if (opts.signalName) {
+        if (eventDef.$type !== 'bpmn:SignalEventDefinition') {
+            throw new Error(`--signal-name can only be used with signal events, but element '${el.id}' has ${eventDef.$type}`);
+        }
+        const signal = getOrDeclareSignal(moddle, definitions, opts.signalName);
+        eventDef.signalRef = signal;
+    }
+    if (opts.messageName) {
+        if (eventDef.$type !== 'bpmn:MessageEventDefinition') {
+            throw new Error(`--message-name can only be used with message events, but element '${el.id}' has ${eventDef.$type}`);
+        }
+        const message = getOrDeclareMessage(moddle, definitions, opts.messageName);
+        eventDef.messageRef = message;
+    }
+}
+export function addElement(moddle, definitions, type, name, sourceId, eventRefOpts) {
     const { bpmnType, defType, extraProps } = parseElementType(type);
     const process = getProcess(definitions);
     const prefix = idPrefix(bpmnType);
@@ -230,6 +381,10 @@ export function addElement(moddle, definitions, type, name, sourceId) {
         elProps.eventDefinitions = [moddle.create(defType, { id: nextEventDefId(process) })];
     }
     const newEl = moddle.create(bpmnType, elProps);
+    if (bpmnType === 'bpmn:UserTask')
+        addZeebeUserTaskMarker(moddle, newEl);
+    if (eventRefOpts)
+        applyEventRef(moddle, definitions, newEl, eventRefOpts);
     const source = getElementById(definitions, sourceId);
     if (!source)
         throw new Error(`Source element '${sourceId}' not found`);
@@ -262,7 +417,7 @@ export function addElement(moddle, definitions, type, name, sourceId) {
     }
     return newEl;
 }
-export function addChildElement(moddle, definitions, parentId, type, name) {
+export function addChildElement(moddle, definitions, parentId, type, name, eventRefOpts) {
     const process = getProcess(definitions);
     const parent = getElementById(definitions, parentId);
     if (!parent)
@@ -275,6 +430,10 @@ export function addChildElement(moddle, definitions, parentId, type, name) {
         elProps.eventDefinitions = [moddle.create(defType, { id: nextEventDefId(process) })];
     }
     const newEl = moddle.create(bpmnType, elProps);
+    if (bpmnType === 'bpmn:UserTask')
+        addZeebeUserTaskMarker(moddle, newEl);
+    if (eventRefOpts)
+        applyEventRef(moddle, definitions, newEl, eventRefOpts);
     parent.flowElements = [...(parent.flowElements ?? []), newEl];
     const diagram = definitions.diagrams?.[0];
     const plane = diagram?.plane;
@@ -288,7 +447,7 @@ export function addChildElement(moddle, definitions, parentId, type, name) {
     }
     return newEl;
 }
-export function createElement(moddle, definitions, type, name) {
+export function createElement(moddle, definitions, type, name, eventRefOpts) {
     const process = getProcess(definitions);
     const { bpmnType, defType, extraProps } = parseElementType(type);
     const prefix = idPrefix(bpmnType);
@@ -298,6 +457,10 @@ export function createElement(moddle, definitions, type, name) {
         elProps.eventDefinitions = [moddle.create(defType, { id: nextEventDefId(process) })];
     }
     const newEl = moddle.create(bpmnType, elProps);
+    if (bpmnType === 'bpmn:UserTask')
+        addZeebeUserTaskMarker(moddle, newEl);
+    if (eventRefOpts)
+        applyEventRef(moddle, definitions, newEl, eventRefOpts);
     process.flowElements = [...(process.flowElements ?? []), newEl];
     const diagram = definitions.diagrams?.[0];
     const plane = diagram?.plane;
@@ -363,6 +526,7 @@ const ACTIVITY_TYPES = new Set([
     'bpmn:SubProcess', 'bpmn:CallActivity', 'bpmn:AdHocSubProcess',
 ]);
 const VALID_HOST_TYPES = ACTIVITY_TYPES;
+const FORM_DEFINITION_EXCLUSIVE_KEYS = ['formId', 'formKey', 'externalReference'];
 function assertActivity(el, prop) {
     if (!ACTIVITY_TYPES.has(el.$type)) {
         throw new Error(`'${prop}' can only be set on activities`);
@@ -421,6 +585,63 @@ export function addBoundaryEvent(moddle, definitions, eventType, name, hostId) {
     }
     return boundaryEvent;
 }
+export function addTextAnnotation(moddle, definitions, text, elementId) {
+    const process = getProcess(definitions);
+    const target = getElementById(definitions, elementId);
+    if (!target)
+        throw new Error(`Element '${elementId}' not found`);
+    const annotationId = nextId(process, 'TextAnnotation');
+    const annotation = moddle.create('bpmn:TextAnnotation', {
+        id: annotationId,
+        text,
+    });
+    const associationId = nextId(process, 'Association');
+    const association = moddle.create('bpmn:Association', {
+        id: associationId,
+        sourceRef: target,
+        targetRef: annotation,
+    });
+    process.artifacts = [...(process.artifacts ?? []), annotation, association];
+    const diagram = definitions.diagrams?.[0];
+    const plane = diagram?.plane;
+    if (plane) {
+        const shape = moddle.create('bpmndi:BPMNShape', {
+            id: `${annotationId}_di`,
+            bpmnElement: annotation,
+            bounds: moddle.create('dc:Bounds', { x: 0, y: 0, width: 100, height: 30 }),
+        });
+        const edge = moddle.create('bpmndi:BPMNEdge', {
+            id: `${associationId}_di`,
+            bpmnElement: association,
+            waypoint: [],
+        });
+        plane.planeElement = [...(plane.planeElement ?? []), shape, edge];
+    }
+    return annotation;
+}
+export function setDocumentation(moddle, definitions, text, elementId, textFormat) {
+    const target = getElementById(definitions, elementId);
+    if (!target)
+        throw new Error(`Element '${elementId}' not found`);
+    const existing = target.documentation ?? [];
+    if (existing.length > 0) {
+        existing[0].text = text;
+        // Explicitly set or clear textFormat so the result is idempotent
+        if (textFormat !== undefined) {
+            existing[0].textFormat = textFormat;
+        }
+        else {
+            delete existing[0].textFormat;
+        }
+    }
+    else {
+        const props = { text };
+        if (textFormat !== undefined)
+            props['textFormat'] = textFormat;
+        const docElement = moddle.create('bpmn:Documentation', props);
+        target.documentation = [docElement];
+    }
+}
 function getOrCreateExtensionElements(moddle, el) {
     if (!el.extensionElements) {
         el.extensionElements = moddle.create('bpmn:ExtensionElements', { values: [] });
@@ -436,9 +657,31 @@ function getOrCreateZeebeChild(moddle, el, zeebeType) {
     }
     return child;
 }
-export function updateElementProperty(moddle, el, prop, values) {
+export function updateElementProperty(moddle, el, prop, values, definitions, logger) {
     if (prop === 'name') {
-        el.name = values[0];
+        el.name = values.join(' ');
+        return;
+    }
+    if (prop === 'signalRef') {
+        const defs = el.eventDefinitions ?? [];
+        const sigDef = defs.find((d) => d.$type === 'bpmn:SignalEventDefinition');
+        if (!sigDef)
+            throw new Error(`Element '${el.id}' does not have a signal event definition`);
+        if (!definitions)
+            throw new Error(`'signalRef' requires definitions context`);
+        const signal = getOrDeclareSignal(moddle, definitions, values.join(' '));
+        sigDef.signalRef = signal;
+        return;
+    }
+    if (prop === 'messageRef') {
+        const defs = el.eventDefinitions ?? [];
+        const msgDef = defs.find((d) => d.$type === 'bpmn:MessageEventDefinition');
+        if (!msgDef)
+            throw new Error(`Element '${el.id}' does not have a message event definition`);
+        if (!definitions)
+            throw new Error(`'messageRef' requires definitions context`);
+        const message = getOrDeclareMessage(moddle, definitions, values.join(' '));
+        msgDef.messageRef = message;
         return;
     }
     if (prop === 'zeebe:taskDefinition.type') {
@@ -497,22 +740,6 @@ export function updateElementProperty(moddle, el, prop, values) {
         }
         return;
     }
-    if (prop === 'zeebe:calledDecision.decisionId') {
-        if (el.$type !== 'bpmn:BusinessRuleTask') {
-            throw new Error(`'zeebe:calledDecision.decisionId' can only be set on business-rule-task`);
-        }
-        const cd = getOrCreateZeebeChild(moddle, el, 'zeebe:CalledDecision');
-        cd.decisionId = values[0];
-        return;
-    }
-    if (prop === 'zeebe:calledDecision.resultVariable') {
-        if (el.$type !== 'bpmn:BusinessRuleTask') {
-            throw new Error(`'zeebe:calledDecision.resultVariable' can only be set on business-rule-task`);
-        }
-        const cd = getOrCreateZeebeChild(moddle, el, 'zeebe:CalledDecision');
-        cd.resultVariable = values[0];
-        return;
-    }
     if (prop === 'zeebe:property') {
         const [name, value] = values;
         const props = getOrCreateZeebeChild(moddle, el, 'zeebe:Properties');
@@ -553,8 +780,39 @@ export function updateElementProperty(moddle, el, prop, values) {
         if (!validKeys.includes(key)) {
             throw new Error(`Unknown zeebe:loopCharacteristics property '${key}'. Supported: ${validKeys.join(', ')}`);
         }
-        const loopChar = getOrCreateZeebeChild(moddle, el, 'zeebe:LoopCharacteristics');
+        if (!el.loopCharacteristics || el.loopCharacteristics.$type !== 'bpmn:MultiInstanceLoopCharacteristics') {
+            throw new Error(`Set 'multi-instance.type' to 'parallel' or 'sequential' before setting zeebe:loopCharacteristics properties`);
+        }
+        const loopChar = getOrCreateZeebeChild(moddle, el.loopCharacteristics, 'zeebe:LoopCharacteristics');
         loopChar[key] = values[0];
+        return;
+    }
+    if (prop === 'zeebe:userTask.disabled') {
+        if (el.$type !== 'bpmn:UserTask') {
+            throw new Error(`'zeebe:userTask.disabled' can only be set on user-task`);
+        }
+        const disabled = values[0] !== 'false';
+        if (disabled) {
+            if (el.extensionElements) {
+                el.extensionElements.values = (el.extensionElements.values ?? []).filter((v) => v.$type !== 'zeebe:UserTask');
+            }
+        }
+        else {
+            addZeebeUserTaskMarker(moddle, el);
+        }
+        return;
+    }
+    if (prop.startsWith('zeebe:adHoc.')) {
+        if (el.$type !== 'bpmn:AdHocSubProcess') {
+            throw new Error(`'${prop}' can only be set on ad-hoc sub-processes`);
+        }
+        const key = prop.slice('zeebe:adHoc.'.length);
+        const validKeys = ['outputCollection', 'outputElement', 'activeElementsCollection'];
+        if (!validKeys.includes(key)) {
+            throw new Error(`Unknown zeebe:adHoc property '${key}'. Supported: ${validKeys.join(', ')}`);
+        }
+        const adHoc = getOrCreateZeebeChild(moddle, el, 'zeebe:AdHoc');
+        adHoc[key] = values[0];
         return;
     }
     if (prop === 'ad-hoc.ordering') {
@@ -575,19 +833,207 @@ export function updateElementProperty(moddle, el, prop, values) {
         el.cancelRemainingInstances = values[0] !== 'false';
         return;
     }
-    throw new Error(`Unknown property '${prop}'. Supported: name, zeebe:taskDefinition.type, zeebe:taskDefinition.retries, ` +
-        `zeebe:calledDecision.decisionId, zeebe:calledDecision.resultVariable, ` +
-        `zeebe:input, zeebe:output, zeebe:header, zeebe:property, isInterrupting, multi-instance.type, ` +
+    if (prop === 'timer.timeDuration' || prop === 'timer.timeCycle' || prop === 'timer.timeDate') {
+        const eventDefs = el.eventDefinitions ?? [];
+        const timerDef = eventDefs.find((d) => d.$type === 'bpmn:TimerEventDefinition');
+        if (!timerDef) {
+            throw new Error(`'${prop}' can only be set on elements with a bpmn:timerEventDefinition`);
+        }
+        const key = prop.slice('timer.'.length);
+        const expr = moddle.create('bpmn:FormalExpression', { body: values[0] });
+        timerDef.timeDuration = undefined;
+        timerDef.timeCycle = undefined;
+        timerDef.timeDate = undefined;
+        timerDef[key] = expr;
+        return;
+    }
+    if (prop.startsWith('zeebe:formDefinition.')) {
+        if (el.$type !== 'bpmn:UserTask') {
+            throw new Error(`'${prop}' can only be set on user tasks`);
+        }
+        const key = prop.slice('zeebe:formDefinition.'.length);
+        const validKeys = ['formId', 'formKey', 'externalReference', 'bindingType', 'versionTag'];
+        if (!validKeys.includes(key)) {
+            throw new Error(`Unknown zeebe:formDefinition property '${key}'. Supported: ${validKeys.join(', ')}`);
+        }
+        const fd = getOrCreateZeebeChild(moddle, el, 'zeebe:FormDefinition');
+        if (FORM_DEFINITION_EXCLUSIVE_KEYS.includes(key)) {
+            for (const other of FORM_DEFINITION_EXCLUSIVE_KEYS) {
+                if (other !== key && fd[other] != null) {
+                    logger?.warn(`Clearing '${other}' because it is mutually exclusive with '${key}'`);
+                    fd[other] = undefined;
+                }
+            }
+        }
+        fd[key] = values[0];
+        return;
+    }
+    if (prop.startsWith('zeebe:assignmentDefinition.')) {
+        if (el.$type !== 'bpmn:UserTask') {
+            throw new Error(`'${prop}' can only be set on user tasks`);
+        }
+        const key = prop.slice('zeebe:assignmentDefinition.'.length);
+        const validKeys = ['assignee', 'candidateGroups', 'candidateUsers'];
+        if (!validKeys.includes(key)) {
+            throw new Error(`Unknown zeebe:assignmentDefinition property '${key}'. Supported: ${validKeys.join(', ')}`);
+        }
+        const ad = getOrCreateZeebeChild(moddle, el, 'zeebe:AssignmentDefinition');
+        ad[key] = values[0];
+        return;
+    }
+    if (prop.startsWith('zeebe:taskSchedule.')) {
+        if (el.$type !== 'bpmn:UserTask') {
+            throw new Error(`'${prop}' can only be set on user tasks`);
+        }
+        const key = prop.slice('zeebe:taskSchedule.'.length);
+        const validKeys = ['dueDate', 'followUpDate'];
+        if (!validKeys.includes(key)) {
+            throw new Error(`Unknown zeebe:taskSchedule property '${key}'. Supported: ${validKeys.join(', ')}`);
+        }
+        const ts = getOrCreateZeebeChild(moddle, el, 'zeebe:TaskSchedule');
+        ts[key] = values[0];
+        return;
+    }
+    if (prop === 'zeebe:priorityDefinition.priority') {
+        if (el.$type !== 'bpmn:UserTask') {
+            throw new Error(`'zeebe:priorityDefinition.priority' can only be set on user tasks`);
+        }
+        const pd = getOrCreateZeebeChild(moddle, el, 'zeebe:PriorityDefinition');
+        pd.priority = values[0];
+        return;
+    }
+    if (prop.startsWith('zeebe:script.')) {
+        if (el.$type !== 'bpmn:ScriptTask') {
+            throw new Error(`'${prop}' can only be set on script tasks`);
+        }
+        const key = prop.slice('zeebe:script.'.length);
+        const validKeys = ['expression', 'resultVariable'];
+        if (!validKeys.includes(key)) {
+            throw new Error(`Unknown zeebe:script property '${key}'. Supported: ${validKeys.join(', ')}`);
+        }
+        const sc = getOrCreateZeebeChild(moddle, el, 'zeebe:Script');
+        sc[key] = values[0];
+        return;
+    }
+    if (prop.startsWith('zeebe:calledDecision.')) {
+        if (el.$type !== 'bpmn:BusinessRuleTask') {
+            throw new Error(`'${prop}' can only be set on business-rule-task`);
+        }
+        const key = prop.slice('zeebe:calledDecision.'.length);
+        const validKeys = ['decisionId', 'resultVariable', 'bindingType', 'versionTag'];
+        if (!validKeys.includes(key)) {
+            throw new Error(`Unknown zeebe:calledDecision property '${key}'. Supported: ${validKeys.join(', ')}`);
+        }
+        const cd = getOrCreateZeebeChild(moddle, el, 'zeebe:CalledDecision');
+        cd[key] = values[0];
+        return;
+    }
+    if (prop.startsWith('zeebe:calledElement.')) {
+        if (el.$type !== 'bpmn:CallActivity') {
+            throw new Error(`'${prop}' can only be set on call activities`);
+        }
+        const key = prop.slice('zeebe:calledElement.'.length);
+        const boolKeys = ['propagateAllChildVariables', 'propagateAllParentVariables'];
+        const validKeys = ['processId', 'processIdExpression', 'bindingType', 'versionTag', ...boolKeys];
+        if (!validKeys.includes(key)) {
+            throw new Error(`Unknown zeebe:calledElement property '${key}'. Supported: ${validKeys.join(', ')}`);
+        }
+        const ce = getOrCreateZeebeChild(moddle, el, 'zeebe:CalledElement');
+        ce[key] = boolKeys.includes(key) ? values[0] !== 'false' : values[0];
+        return;
+    }
+    if (prop === 'zeebe:executionListener') {
+        assertActivity(el, prop);
+        const [eventType, type] = values;
+        if (!eventType || !type) {
+            throw new Error(`'zeebe:executionListener' requires eventType=type format`);
+        }
+        const container = getOrCreateZeebeChild(moddle, el, 'zeebe:ExecutionListeners');
+        const listener = moddle.create('zeebe:ExecutionListener', { eventType, type });
+        container.listeners = [...(container.listeners ?? []), listener];
+        return;
+    }
+    if (prop === 'zeebe:taskListener') {
+        if (el.$type !== 'bpmn:UserTask') {
+            throw new Error(`'zeebe:taskListener' can only be set on user tasks`);
+        }
+        const [eventType, type] = values;
+        if (!eventType || !type) {
+            throw new Error(`'zeebe:taskListener' requires eventType=type format`);
+        }
+        const container = getOrCreateZeebeChild(moddle, el, 'zeebe:TaskListeners');
+        const listener = moddle.create('zeebe:TaskListener', { eventType, type });
+        container.listeners = [...(container.listeners ?? []), listener];
+        return;
+    }
+    if (prop === 'zeebe:subscription.correlationKey') {
+        const eventDefs = el.eventDefinitions ?? [];
+        const msgDef = eventDefs.find((d) => d.$type === 'bpmn:MessageEventDefinition');
+        if (!msgDef) {
+            throw new Error(`'zeebe:subscription.correlationKey' requires a message event definition`);
+        }
+        const sub = getOrCreateZeebeChild(moddle, el, 'zeebe:Subscription');
+        sub.correlationKey = values[0];
+        return;
+    }
+    if (prop.startsWith('zeebe:conditionalFilter.')) {
+        const key = prop.slice('zeebe:conditionalFilter.'.length);
+        const validKeys = ['variableNames', 'variableEvents'];
+        if (!validKeys.includes(key)) {
+            throw new Error(`Unknown zeebe:conditionalFilter property '${key}'. Supported: ${validKeys.join(', ')}`);
+        }
+        const eventDefs = el.eventDefinitions ?? [];
+        const condDef = eventDefs.find((d) => d.$type === 'bpmn:ConditionalEventDefinition');
+        if (!condDef) {
+            throw new Error(`'${prop}' requires an element with a conditional event definition`);
+        }
+        const filter = getOrCreateZeebeChild(moddle, condDef, 'zeebe:ConditionalFilter');
+        filter[key] = values[0];
+        return;
+    }
+    if (prop === 'zeebe:linkedResource') {
+        assertActivity(el, prop);
+        const [resourceId, resourceType] = values;
+        if (!resourceId || !resourceType) {
+            throw new Error(`'zeebe:linkedResource' requires resourceId=resourceType format`);
+        }
+        const container = getOrCreateZeebeChild(moddle, el, 'zeebe:LinkedResources');
+        const resource = moddle.create('zeebe:LinkedResource', { resourceId, resourceType });
+        container.values = [...(container.values ?? []), resource];
+        return;
+    }
+    throw new Error(`Unknown property '${prop}'. Supported: name, signalRef, messageRef, ` +
+        `zeebe:taskDefinition.type, zeebe:taskDefinition.retries, ` +
+        `zeebe:input, zeebe:output, zeebe:header, zeebe:property, zeebe:userTask.disabled, ` +
+        `zeebe:assignmentDefinition.assignee, zeebe:assignmentDefinition.candidateGroups, zeebe:assignmentDefinition.candidateUsers, ` +
+        `zeebe:taskSchedule.dueDate, zeebe:taskSchedule.followUpDate, ` +
+        `zeebe:priorityDefinition.priority, ` +
+        `zeebe:script.expression, zeebe:script.resultVariable, ` +
+        `zeebe:formDefinition.formId, zeebe:formDefinition.formKey, zeebe:formDefinition.externalReference, ` +
+        `zeebe:formDefinition.bindingType, zeebe:formDefinition.versionTag, ` +
+        `zeebe:calledDecision.decisionId, zeebe:calledDecision.resultVariable, zeebe:calledDecision.bindingType, zeebe:calledDecision.versionTag, ` +
+        `zeebe:calledElement.processId, zeebe:calledElement.processIdExpression, ` +
+        `zeebe:calledElement.propagateAllChildVariables, zeebe:calledElement.propagateAllParentVariables, ` +
+        `zeebe:calledElement.bindingType, zeebe:calledElement.versionTag, ` +
+        `zeebe:executionListener, zeebe:taskListener, ` +
+        `zeebe:subscription.correlationKey, zeebe:conditionalFilter.variableNames, zeebe:conditionalFilter.variableEvents, ` +
+        `zeebe:linkedResource, ` +
+        `isInterrupting, multi-instance.type, ` +
         `zeebe:loopCharacteristics.inputCollection, zeebe:loopCharacteristics.inputElement, ` +
         `zeebe:loopCharacteristics.outputCollection, zeebe:loopCharacteristics.outputElement, ` +
-        `ad-hoc.ordering, ad-hoc.cancelRemainingInstances`);
+        `ad-hoc.ordering, ad-hoc.cancelRemainingInstances, ` +
+        `timer.timeDuration, timer.timeCycle, timer.timeDate, ` +
+        `zeebe:adHoc.outputCollection, zeebe:adHoc.outputElement, zeebe:adHoc.activeElementsCollection`);
 }
 function extractZeebe(el) {
     const values = el.extensionElements?.values ?? [];
-    if (values.length === 0)
+    // Also check loopCharacteristics extension elements for zeebe:LoopCharacteristics
+    const loopExtValues = el.loopCharacteristics?.extensionElements?.values ?? [];
+    const allValues = [...values, ...loopExtValues];
+    if (allValues.length === 0)
         return undefined;
     const result = {};
-    for (const v of values) {
+    for (const v of allValues) {
         const type = v.$type ?? '';
         if (type === 'zeebe:TaskDefinition') {
             result['taskDefinition'] = { type: v.type, retries: v.retries };
@@ -604,14 +1050,8 @@ function extractZeebe(el) {
         else if (type === 'zeebe:Properties') {
             result['properties'] = (v.properties ?? []).map((p) => ({ name: p.name, value: p.value }));
         }
-        else if (type === 'zeebe:CalledDecision') {
-            const cd = {};
-            if (v.decisionId != null)
-                cd['decisionId'] = v.decisionId;
-            if (v.resultVariable != null)
-                cd['resultVariable'] = v.resultVariable;
-            if (Object.keys(cd).length > 0)
-                result['calledDecision'] = cd;
+        else if (type === 'zeebe:UserTask') {
+            result['userTask'] = true;
         }
         else if (type === 'zeebe:LoopCharacteristics') {
             const lc = {};
@@ -626,14 +1066,159 @@ function extractZeebe(el) {
             if (Object.keys(lc).length > 0)
                 result['loopCharacteristics'] = lc;
         }
+        else if (type === 'zeebe:FormDefinition') {
+            const fd = {};
+            if (v.formId != null)
+                fd['formId'] = v.formId;
+            if (v.formKey != null)
+                fd['formKey'] = v.formKey;
+            if (v.externalReference != null)
+                fd['externalReference'] = v.externalReference;
+            if (v.bindingType != null)
+                fd['bindingType'] = v.bindingType;
+            if (v.versionTag != null)
+                fd['versionTag'] = v.versionTag;
+            if (Object.keys(fd).length > 0)
+                result['formDefinition'] = fd;
+        }
+        else if (type === 'zeebe:AdHoc') {
+            const ah = {};
+            if (v.outputCollection != null)
+                ah['outputCollection'] = v.outputCollection;
+            if (v.outputElement != null)
+                ah['outputElement'] = v.outputElement;
+            if (v.activeElementsCollection != null)
+                ah['activeElementsCollection'] = v.activeElementsCollection;
+            if (Object.keys(ah).length > 0)
+                result['adHoc'] = ah;
+        }
+        else if (type === 'zeebe:AssignmentDefinition') {
+            const ad = {};
+            if (v.assignee != null)
+                ad['assignee'] = v.assignee;
+            if (v.candidateGroups != null)
+                ad['candidateGroups'] = v.candidateGroups;
+            if (v.candidateUsers != null)
+                ad['candidateUsers'] = v.candidateUsers;
+            if (Object.keys(ad).length > 0)
+                result['assignmentDefinition'] = ad;
+        }
+        else if (type === 'zeebe:TaskSchedule') {
+            const ts = {};
+            if (v.dueDate != null)
+                ts['dueDate'] = v.dueDate;
+            if (v.followUpDate != null)
+                ts['followUpDate'] = v.followUpDate;
+            if (Object.keys(ts).length > 0)
+                result['taskSchedule'] = ts;
+        }
+        else if (type === 'zeebe:PriorityDefinition') {
+            if (v.priority != null)
+                result['priorityDefinition'] = { priority: v.priority };
+        }
+        else if (type === 'zeebe:Script') {
+            const sc = {};
+            if (v.expression != null)
+                sc['expression'] = v.expression;
+            if (v.resultVariable != null)
+                sc['resultVariable'] = v.resultVariable;
+            if (Object.keys(sc).length > 0)
+                result['script'] = sc;
+        }
+        else if (type === 'zeebe:CalledElement') {
+            const ce = {};
+            if (v.processId != null)
+                ce['processId'] = v.processId;
+            if (v.processIdExpression != null)
+                ce['processIdExpression'] = v.processIdExpression;
+            if (v.propagateAllChildVariables != null)
+                ce['propagateAllChildVariables'] = v.propagateAllChildVariables;
+            if (v.propagateAllParentVariables != null)
+                ce['propagateAllParentVariables'] = v.propagateAllParentVariables;
+            if (v.bindingType != null)
+                ce['bindingType'] = v.bindingType;
+            if (v.versionTag != null)
+                ce['versionTag'] = v.versionTag;
+            if (Object.keys(ce).length > 0)
+                result['calledElement'] = ce;
+        }
+        else if (type === 'zeebe:ExecutionListeners') {
+            const listeners = (v.listeners ?? []).map((l) => ({ eventType: l.eventType, type: l.type }));
+            if (listeners.length > 0)
+                result['executionListeners'] = listeners;
+        }
+        else if (type === 'zeebe:TaskListeners') {
+            const listeners = (v.listeners ?? []).map((l) => ({ eventType: l.eventType, type: l.type }));
+            if (listeners.length > 0)
+                result['taskListeners'] = listeners;
+        }
+        else if (type === 'zeebe:Subscription') {
+            if (v.correlationKey != null)
+                result['subscription'] = { correlationKey: v.correlationKey };
+        }
+        else if (type === 'zeebe:LinkedResources') {
+            const resources = (v.values ?? []).map((r) => ({ resourceId: r.resourceId, resourceType: r.resourceType }));
+            if (resources.length > 0)
+                result['linkedResources'] = resources;
+        }
+        else if (type === 'zeebe:CalledDecision') {
+            const cd = {};
+            if (v.decisionId != null)
+                cd['decisionId'] = v.decisionId;
+            if (v.resultVariable != null)
+                cd['resultVariable'] = v.resultVariable;
+            if (v.bindingType != null)
+                cd['bindingType'] = v.bindingType;
+            if (v.versionTag != null)
+                cd['versionTag'] = v.versionTag;
+            if (Object.keys(cd).length > 0)
+                result['calledDecision'] = cd;
+        }
     }
     return Object.keys(result).length > 0 ? result : undefined;
+}
+export function toEventDefinitionJson(defs) {
+    if (defs.length === 0)
+        return undefined;
+    const def = defs[0];
+    const type = DEF_TYPE_TO_TRIGGER[def.$type] ?? def.$type;
+    const result = { type };
+    if (def.signalRef) {
+        result['signalRef'] = def.signalRef.name ?? def.signalRef.id ?? def.signalRef;
+    }
+    if (def.messageRef) {
+        result['messageRef'] = def.messageRef.name ?? def.messageRef.id ?? def.messageRef;
+    }
+    if (def.condition?.body !== undefined) {
+        result['condition'] = def.condition.body;
+    }
+    if (def.timeCycle?.body !== undefined) {
+        result['timerCycle'] = def.timeCycle.body;
+    }
+    if (def.timeDuration?.body !== undefined) {
+        result['timerDuration'] = def.timeDuration.body;
+    }
+    if (def.timeDate?.body !== undefined) {
+        result['timerDate'] = def.timeDate.body;
+    }
+    const condFilterValues = def.extensionElements?.values ?? [];
+    const condFilter = condFilterValues.find((v) => v.$type === 'zeebe:ConditionalFilter');
+    if (condFilter) {
+        const cf = {};
+        if (condFilter.variableNames != null)
+            cf['variableNames'] = condFilter.variableNames;
+        if (condFilter.variableEvents != null)
+            cf['variableEvents'] = condFilter.variableEvents;
+        if (Object.keys(cf).length > 0)
+            result['conditionalFilter'] = cf;
+    }
+    return result;
 }
 function toElementJson(e) {
     const local = e.$type.replace('bpmn:', '');
     const type = local.charAt(0).toLowerCase() + local.slice(1);
     const defs = e.eventDefinitions ?? [];
-    const eventDefinition = defs.length > 0 ? (DEF_TYPE_TO_TRIGGER[defs[0].$type] ?? defs[0].$type) : undefined;
+    const eventDefinition = toEventDefinitionJson(defs);
     const entry = {
         id: e.id,
         type,
@@ -650,6 +1235,18 @@ function toElementJson(e) {
                 outgoing: (e.outgoing ?? []).map((f) => f.id),
             }),
     };
+    if (eventDefinition?.type === 'timer' && defs.length > 0) {
+        const timerDef = defs[0];
+        const timerEntry = {};
+        if (timerDef.timeDuration?.body !== undefined)
+            timerEntry['timeDuration'] = timerDef.timeDuration.body;
+        if (timerDef.timeCycle?.body !== undefined)
+            timerEntry['timeCycle'] = timerDef.timeCycle.body;
+        if (timerDef.timeDate?.body !== undefined)
+            timerEntry['timeDate'] = timerDef.timeDate.body;
+        if (Object.keys(timerEntry).length > 0)
+            entry['timer'] = timerEntry;
+    }
     const zeebe = extractZeebe(e);
     if (zeebe)
         entry['zeebe'] = zeebe;
@@ -674,6 +1271,17 @@ function toElementJson(e) {
         entry['children'] = children;
         entry['childFlows'] = childFlows;
     }
+    const docs = e.documentation ?? [];
+    if (docs.length > 0) {
+        const doc = docs[0];
+        const docEntry = { text: doc.text };
+        // Omit textFormat when it is the BPMN-spec default ('text/plain') to keep
+        // the status output concise; only non-default values are meaningful here.
+        if (doc.textFormat !== undefined && doc.textFormat !== 'text/plain') {
+            docEntry['textFormat'] = doc.textFormat;
+        }
+        entry['documentation'] = docEntry;
+    }
     return entry;
 }
 function toContainerJson(container) {
@@ -694,13 +1302,34 @@ function toContainerJson(container) {
 export function toStatusJson(definitions, cursor) {
     const process = getProcess(definitions);
     const { elements, flows } = toContainerJson(process);
-    return {
+    const artifacts = toArtifactsJson(process);
+    const result = {
         cursor,
         process: {
             id: process.id,
             name: process.name,
             elements,
             flows,
+            ...(artifacts.length > 0 ? { artifacts } : {}),
         },
     };
+    return result;
+}
+function toArtifactsJson(process) {
+    const arts = process.artifacts ?? [];
+    const annotations = arts.filter((a) => a.$type === 'bpmn:TextAnnotation');
+    const associations = arts.filter((a) => a.$type === 'bpmn:Association');
+    return annotations.map((a) => {
+        const assoc = associations.find((asc) => (asc.targetRef?.id ?? asc.targetRef) === a.id);
+        const entry = {
+            id: a.id,
+            type: 'TextAnnotation',
+            text: a.text,
+        };
+        if (assoc) {
+            entry['associatedTo'] = assoc.sourceRef?.id ?? assoc.sourceRef;
+            entry['associationId'] = assoc.id;
+        }
+        return entry;
+    });
 }

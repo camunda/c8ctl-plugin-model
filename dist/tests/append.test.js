@@ -33,7 +33,6 @@ const ELEMENT_TYPES = [
     ['signal-intermediate-catch-event', 'intermediateCatchEvent'],
     ['conditional-intermediate-catch-event', 'intermediateCatchEvent'],
     ['link-intermediate-catch-event', 'intermediateCatchEvent'],
-    ['intermediate-throw-event', 'intermediateThrowEvent'],
     ['message-intermediate-throw-event', 'intermediateThrowEvent'],
     ['signal-intermediate-throw-event', 'intermediateThrowEvent'],
     ['escalation-intermediate-throw-event', 'intermediateThrowEvent'],
@@ -69,6 +68,22 @@ for (const [type, expectedType] of ELEMENT_TYPES) {
         }
     });
 }
+test('append user-task emits zeebe:UserTask marker', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupModel('proc', cwd);
+        await append(['user-task', 'Review'], cwd);
+        const status = await getStatus(cwd);
+        const proc = status['process'];
+        const elements = proc['elements'];
+        const el = elements.find((e) => e['id'] === 'Activity_1');
+        const zeebe = el?.['zeebe'];
+        assert.equal(zeebe?.['userTask'], true, 'zeebe:UserTask marker should be present');
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
 test('append moves cursor to new element', async () => {
     const cwd = tmpDir();
     try {
@@ -131,11 +146,15 @@ test('append supports multi-word labels', async () => {
         cleanup(cwd);
     }
 });
-test('append throws when source element not found', async () => {
+test('append treats unresolvable last token as part of label', async () => {
     const cwd = tmpDir();
     try {
         await setupModel('proc', cwd);
-        await assert.rejects(() => append(['user-task', 'Task', 'Activity_99'], cwd), /not found/);
+        await append(['user-task', 'Task', 'Activity_99'], cwd);
+        const status = await getStatus(cwd);
+        const proc = status['process'];
+        const elements = proc['elements'];
+        assert.ok(elements.find((e) => e['name'] === 'Task Activity_99'), 'unresolvable token should be part of label');
     }
     finally {
         cleanup(cwd);
@@ -151,7 +170,7 @@ test('append typed event shows eventDefinition in status', async () => {
         const elements = proc['elements'];
         const el = elements.find((e) => e['name'] === 'Wait');
         assert.equal(el?.['type'], 'intermediateCatchEvent');
-        assert.equal(el?.['eventDefinition'], 'timer');
+        assert.deepEqual(el?.['eventDefinition'], { type: 'timer' });
     }
     finally {
         cleanup(cwd);
@@ -167,7 +186,7 @@ test('append typed end event shows eventDefinition in status', async () => {
         const elements = proc['elements'];
         const el = elements.find((e) => e['name'] === 'Fail');
         assert.equal(el?.['type'], 'endEvent');
-        assert.equal(el?.['eventDefinition'], 'error');
+        assert.deepEqual(el?.['eventDefinition'], { type: 'error' });
     }
     finally {
         cleanup(cwd);
@@ -178,6 +197,16 @@ test('append intermediate-catch-event throws and directs to typed variants', asy
     try {
         await setupModel('proc', cwd);
         await assert.rejects(() => append(['intermediate-catch-event', 'Catch'], cwd), /typed variant/);
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('append intermediate-throw-event throws and directs to typed variants', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupModel('proc', cwd);
+        await assert.rejects(() => append(['intermediate-throw-event', 'Throw'], cwd), /typed variant/);
     }
     finally {
         cleanup(cwd);
@@ -219,6 +248,68 @@ test('append throws without required arguments', async () => {
         await setupModel('proc', cwd);
         await assert.rejects(() => append(['user-task'], cwd), /Usage/);
         await assert.rejects(() => append([], cwd), /Usage/);
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+// --- --id flag ---
+test('append --id sets semantic element ID', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupModel('proc', cwd);
+        await append(['user-task', 'Review', '--id', 'ReviewTask'], cwd);
+        const status = await getStatus(cwd);
+        const proc = status['process'];
+        const elements = proc['elements'];
+        assert.ok(elements.find((e) => e['id'] === 'ReviewTask'), 'ReviewTask element should exist');
+        const state = readState(cwd);
+        assert.equal(state.cursor, 'ReviewTask');
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('append --id rejects invalid ID format', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupModel('proc', cwd);
+        await assert.rejects(() => append(['user-task', 'Review', '--id', '1invalid'], cwd), /Invalid ID/);
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('append --id rejects duplicate ID', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupModel('proc', cwd);
+        await assert.rejects(() => append(['user-task', 'Review', '--id', 'StartEvent_1'], cwd), /already used/);
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('append --id without value throws error', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupModel('proc', cwd);
+        await assert.rejects(() => append(['user-task', 'Review', '--id'], cwd), /--id requires a value/);
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('append accepts semantic sourceElementId', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupModel('proc', cwd);
+        await append(['user-task', 'Review', '--id', 'ReviewTask'], cwd);
+        await append(['service-task', 'Execute', 'ReviewTask'], cwd);
+        const status = await getStatus(cwd);
+        const proc = status['process'];
+        const flows = proc['flows'];
+        assert.ok(flows.find((f) => f['source'] === 'ReviewTask'), 'flow from semantic source ID should exist');
     }
     finally {
         cleanup(cwd);

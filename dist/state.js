@@ -1,9 +1,11 @@
 import { readFileSync, writeFileSync, existsSync, unlinkSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
-function getStatePath() {
+function getStatePath(cwd) {
     if (process.env.C8CTL_STATE_FILE)
         return process.env.C8CTL_STATE_FILE;
+    if (cwd)
+        return join(cwd, '.c8ctl-model.json');
     const home = homedir();
     let dir;
     if (process.platform === 'darwin') {
@@ -17,8 +19,8 @@ function getStatePath() {
     }
     return join(dir, 'c8ctl-model.json');
 }
-export function readState() {
-    const path = getStatePath();
+export function readState(cwd) {
+    const path = getStatePath(cwd);
     if (!existsSync(path)) {
         throw new Error('No model found. Run: c8ctl model init <name>');
     }

@@ -416,11 +416,13 @@ test('update throws for unknown property', async () => {
         cleanup(cwd);
     }
 });
-test('update throws when element not found', async () => {
+test('update treats unresolvable first arg as property name', async () => {
     const cwd = tmpDir();
     try {
         await setupWithTask(cwd);
-        await assert.rejects(() => update(['Activity_99', 'name', 'X'], cwd), /not found/);
+        // Activity_99 does not exist, so it is not treated as an element ID —
+        // it falls through as the property name and fails with "Unknown property".
+        await assert.rejects(() => update(['Activity_99', 'name', 'X'], cwd), /Unknown property/);
     }
     finally {
         cleanup(cwd);
@@ -831,6 +833,1249 @@ test('update ad-hoc.cancelRemainingInstances true', async () => {
         const elements = proc['elements'];
         const el = elements.find((e) => e['id'] === 'Activity_1');
         assert.equal(el?.['cancelRemainingInstances'], true);
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+// --- timer.timeDuration / timer.timeCycle / timer.timeDate ---
+async function setupWithTimerBoundary(cwd) {
+    await setupModel('proc', cwd);
+    await append(['user-task', 'Review'], cwd); // Activity_1
+    await append(['--boundary', 'timer', 'Timeout'], cwd); // BoundaryEvent_1, cursor → BoundaryEvent_1
+}
+test('update timer.timeDuration sets duration on boundary timer event', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupWithTimerBoundary(cwd);
+        await update(['timer.timeDuration', 'PT1H'], cwd);
+        const status = await getStatus(cwd);
+        const proc = status['process'];
+        const elements = proc['elements'];
+        const el = elements.find((e) => e['id'] === 'BoundaryEvent_1');
+        const timer = el?.['timer'];
+        assert.equal(timer?.['timeDuration'], 'PT1H');
+        assert.equal(timer?.['timeCycle'], undefined);
+        assert.equal(timer?.['timeDate'], undefined);
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('update timer.timeCycle sets cycle on boundary timer event', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupWithTimerBoundary(cwd);
+        await update(['timer.timeCycle', 'R/PT1H'], cwd);
+        const status = await getStatus(cwd);
+        const proc = status['process'];
+        const elements = proc['elements'];
+        const el = elements.find((e) => e['id'] === 'BoundaryEvent_1');
+        const timer = el?.['timer'];
+        assert.equal(timer?.['timeCycle'], 'R/PT1H');
+        assert.equal(timer?.['timeDuration'], undefined);
+        assert.equal(timer?.['timeDate'], undefined);
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('update timer.timeDate sets date on boundary timer event', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupWithTimerBoundary(cwd);
+        await update(['timer.timeDate', '2025-12-31T23:59:59Z'], cwd);
+        const status = await getStatus(cwd);
+        const proc = status['process'];
+        const elements = proc['elements'];
+        const el = elements.find((e) => e['id'] === 'BoundaryEvent_1');
+        const timer = el?.['timer'];
+        assert.equal(timer?.['timeDate'], '2025-12-31T23:59:59Z');
+        assert.equal(timer?.['timeDuration'], undefined);
+        assert.equal(timer?.['timeCycle'], undefined);
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('update timer property clears previously set timer property (mutual exclusion)', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupWithTimerBoundary(cwd);
+        await update(['timer.timeDuration', 'PT1H'], cwd);
+        await update(['timer.timeCycle', 'R/PT30M'], cwd);
+        const status = await getStatus(cwd);
+        const proc = status['process'];
+        const elements = proc['elements'];
+        const el = elements.find((e) => e['id'] === 'BoundaryEvent_1');
+        const timer = el?.['timer'];
+        assert.equal(timer?.['timeCycle'], 'R/PT30M');
+        assert.equal(timer?.['timeDuration'], undefined);
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('update timer.timeDuration on timer-intermediate-catch-event', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupModel('proc', cwd);
+        await append(['timer-intermediate-catch-event', 'Wait'], cwd); // Event_1
+        await update(['timer.timeDuration', 'PT5M'], cwd);
+        const status = await getStatus(cwd);
+        const proc = status['process'];
+        const elements = proc['elements'];
+        const el = elements.find((e) => e['id'] === 'Event_1');
+        const timer = el?.['timer'];
+        assert.equal(timer?.['timeDuration'], 'PT5M');
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('update timer.timeDuration on timer-start-event', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupModel('proc', cwd);
+        await create(['timer-start-event', 'Scheduled Start'], cwd); // StartEvent_2
+        await update(['timer.timeDuration', 'PT10M'], cwd);
+        const status = await getStatus(cwd);
+        const proc = status['process'];
+        const elements = proc['elements'];
+        const el = elements.find((e) => e['id'] === 'StartEvent_2');
+        const timer = el?.['timer'];
+        assert.equal(timer?.['timeDuration'], 'PT10M');
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('update timer.timeDuration with FEEL expression (= prefix)', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupWithTimerBoundary(cwd);
+        await update(['timer.timeDuration', '=duration("PT1H")'], cwd);
+        const status = await getStatus(cwd);
+        const proc = status['process'];
+        const elements = proc['elements'];
+        const el = elements.find((e) => e['id'] === 'BoundaryEvent_1');
+        const timer = el?.['timer'];
+        assert.equal(timer?.['timeDuration'], '=duration("PT1H")');
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('update timer.timeDuration throws on non-timer element', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupWithTask(cwd);
+        await assert.rejects(() => update(['timer.timeDuration', 'PT1H'], cwd), /bpmn:timerEventDefinition/);
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('update zeebe:userTask.disabled true removes zeebe:UserTask marker', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupWithTask(cwd);
+        await update(['zeebe:userTask.disabled', 'true'], cwd);
+        const status = await getStatus(cwd);
+        const proc = status['process'];
+        const elements = proc['elements'];
+        const el = elements.find((e) => e['id'] === 'Activity_1');
+        const zeebe = el?.['zeebe'];
+        assert.ok(!zeebe?.['userTask'], 'zeebe:UserTask marker should be absent');
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('update timer.timeCycle throws on non-timer element', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupWithTask(cwd);
+        await assert.rejects(() => update(['timer.timeCycle', 'R/PT1H'], cwd), /bpmn:timerEventDefinition/);
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('update timer.timeDate throws on non-timer element', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupWithTask(cwd);
+        await assert.rejects(() => update(['timer.timeDate', '2025-12-31T23:59:59Z'], cwd), /bpmn:timerEventDefinition/);
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('update timer.timeDuration serializes xsi:type="bpmn:tFormalExpression" in XML', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupWithTimerBoundary(cwd);
+        await update(['timer.timeDuration', 'PT1H'], cwd);
+        const { readState } = await import('../state.js');
+        const { readFileSync } = await import('node:fs');
+        const state = readState(cwd);
+        const xml = readFileSync(state.file, 'utf-8');
+        assert.ok(xml.includes('xsi:type="bpmn:tFormalExpression"'), 'XML must include xsi:type="bpmn:tFormalExpression"');
+        assert.ok(xml.includes('<bpmn:timeDuration'), 'XML must include <bpmn:timeDuration>');
+        assert.ok(xml.includes('PT1H'), 'XML must include the expression value');
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('update timer.timeCycle serializes xsi:type="bpmn:tFormalExpression" in XML', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupWithTimerBoundary(cwd);
+        await update(['timer.timeCycle', 'R/PT30M'], cwd);
+        const { readState } = await import('../state.js');
+        const { readFileSync } = await import('node:fs');
+        const state = readState(cwd);
+        const xml = readFileSync(state.file, 'utf-8');
+        assert.ok(xml.includes('<bpmn:timeCycle'), 'XML must include <bpmn:timeCycle>');
+        assert.ok(xml.includes('xsi:type="bpmn:tFormalExpression"'), 'XML must include xsi:type="bpmn:tFormalExpression"');
+        assert.ok(xml.includes('R/PT30M'), 'XML must include the expression value');
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('update timer.timeDate serializes xsi:type="bpmn:tFormalExpression" in XML', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupWithTimerBoundary(cwd);
+        await update(['timer.timeDate', '2025-12-31T23:59:59Z'], cwd);
+        const { readState } = await import('../state.js');
+        const { readFileSync } = await import('node:fs');
+        const state = readState(cwd);
+        const xml = readFileSync(state.file, 'utf-8');
+        assert.ok(xml.includes('<bpmn:timeDate'), 'XML must include <bpmn:timeDate>');
+        assert.ok(xml.includes('xsi:type="bpmn:tFormalExpression"'), 'XML must include xsi:type="bpmn:tFormalExpression"');
+        assert.ok(xml.includes('2025-12-31T23:59:59Z'), 'XML must include the expression value');
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('update timer.timeDuration serializes previous element removed from XML on overwrite', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupWithTimerBoundary(cwd);
+        await update(['timer.timeCycle', 'R/PT1H'], cwd);
+        await update(['timer.timeDuration', 'PT2H'], cwd);
+        const { readState } = await import('../state.js');
+        const { readFileSync } = await import('node:fs');
+        const state = readState(cwd);
+        const xml = readFileSync(state.file, 'utf-8');
+        assert.ok(xml.includes('<bpmn:timeDuration'), 'XML must include <bpmn:timeDuration>');
+        assert.ok(!xml.includes('<bpmn:timeCycle'), 'XML must not include <bpmn:timeCycle> after overwrite');
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('update timer.timeCycle on timer-start-event', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupModel('proc', cwd);
+        await create(['timer-start-event', 'Scheduled Start'], cwd); // StartEvent_2
+        await update(['timer.timeCycle', 'R3/PT1H'], cwd);
+        const status = await getStatus(cwd);
+        const proc = status['process'];
+        const elements = proc['elements'];
+        const el = elements.find((e) => e['id'] === 'StartEvent_2');
+        const timer = el?.['timer'];
+        assert.equal(timer?.['timeCycle'], 'R3/PT1H');
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('update timer.timeDate on timer-start-event', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupModel('proc', cwd);
+        await create(['timer-start-event', 'Scheduled Start'], cwd); // StartEvent_2
+        await update(['timer.timeDate', '2026-01-01T00:00:00Z'], cwd);
+        const status = await getStatus(cwd);
+        const proc = status['process'];
+        const elements = proc['elements'];
+        const el = elements.find((e) => e['id'] === 'StartEvent_2');
+        const timer = el?.['timer'];
+        assert.equal(timer?.['timeDate'], '2026-01-01T00:00:00Z');
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('update timer.timeCycle on timer-intermediate-catch-event', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupModel('proc', cwd);
+        await append(['timer-intermediate-catch-event', 'Wait'], cwd); // Event_1
+        await update(['timer.timeCycle', '0 9 * * MON-FRI'], cwd);
+        const status = await getStatus(cwd);
+        const proc = status['process'];
+        const elements = proc['elements'];
+        const el = elements.find((e) => e['id'] === 'Event_1');
+        const timer = el?.['timer'];
+        assert.equal(timer?.['timeCycle'], '0 9 * * MON-FRI');
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('update timer.timeDate on timer-intermediate-catch-event', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupModel('proc', cwd);
+        await append(['timer-intermediate-catch-event', 'Wait'], cwd); // Event_1
+        await update(['timer.timeDate', '2025-06-15T08:00:00Z'], cwd);
+        const status = await getStatus(cwd);
+        const proc = status['process'];
+        const elements = proc['elements'];
+        const el = elements.find((e) => e['id'] === 'Event_1');
+        const timer = el?.['timer'];
+        assert.equal(timer?.['timeDate'], '2025-06-15T08:00:00Z');
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('update timer.timeDuration on non-interrupting timer boundary event', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupModel('proc', cwd);
+        await append(['user-task', 'Review'], cwd); // Activity_1
+        await append(['--boundary', 'non-interrupting-timer', 'Escalate'], cwd); // BoundaryEvent_1
+        await update(['timer.timeDuration', 'PT2H'], cwd);
+        const status = await getStatus(cwd);
+        const proc = status['process'];
+        const elements = proc['elements'];
+        const el = elements.find((e) => e['id'] === 'BoundaryEvent_1');
+        const timer = el?.['timer'];
+        assert.equal(timer?.['timeDuration'], 'PT2H');
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('update timer.timeDuration with explicit elementId targeting', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupModel('proc', cwd);
+        await append(['user-task', 'Review'], cwd); // Activity_1
+        await append(['--boundary', 'timer', 'Timeout'], cwd); // BoundaryEvent_1, cursor → BoundaryEvent_1
+        await append(['user-task', 'Approve'], cwd); // Activity_2, cursor → Activity_2
+        await update(['BoundaryEvent_1', 'timer.timeDuration', 'PT30M'], cwd);
+        const status = await getStatus(cwd);
+        const proc = status['process'];
+        const elements = proc['elements'];
+        const el = elements.find((e) => e['id'] === 'BoundaryEvent_1');
+        const timer = el?.['timer'];
+        assert.equal(timer?.['timeDuration'], 'PT30M');
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('update timer property mutual exclusion: timeCycle clears timeDate', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupWithTimerBoundary(cwd);
+        await update(['timer.timeDate', '2025-12-31T23:59:59Z'], cwd);
+        await update(['timer.timeCycle', 'R/PT1H'], cwd);
+        const status = await getStatus(cwd);
+        const proc = status['process'];
+        const elements = proc['elements'];
+        const el = elements.find((e) => e['id'] === 'BoundaryEvent_1');
+        const timer = el?.['timer'];
+        assert.equal(timer?.['timeCycle'], 'R/PT1H');
+        assert.equal(timer?.['timeDate'], undefined);
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('update timer property mutual exclusion: timeDate clears timeDuration', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupWithTimerBoundary(cwd);
+        await update(['timer.timeDuration', 'PT4H'], cwd);
+        await update(['timer.timeDate', '2026-03-01T12:00:00Z'], cwd);
+        const status = await getStatus(cwd);
+        const proc = status['process'];
+        const elements = proc['elements'];
+        const el = elements.find((e) => e['id'] === 'BoundaryEvent_1');
+        const timer = el?.['timer'];
+        assert.equal(timer?.['timeDate'], '2026-03-01T12:00:00Z');
+        assert.equal(timer?.['timeDuration'], undefined);
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('update timer.timeCycle with FEEL expression', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupModel('proc', cwd);
+        await create(['timer-start-event', 'Scheduled'], cwd);
+        await update(['timer.timeCycle', '=cycle(duration("PT1H"))'], cwd);
+        const status = await getStatus(cwd);
+        const proc = status['process'];
+        const elements = proc['elements'];
+        const el = elements.find((e) => e['id'] === 'StartEvent_2');
+        const timer = el?.['timer'];
+        assert.equal(timer?.['timeCycle'], '=cycle(duration("PT1H"))');
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('update timer.timeDate with FEEL expression', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupWithTimerBoundary(cwd);
+        await update(['timer.timeDate', '=date and time("2026-01-01T00:00:00Z")'], cwd);
+        const status = await getStatus(cwd);
+        const proc = status['process'];
+        const elements = proc['elements'];
+        const el = elements.find((e) => e['id'] === 'BoundaryEvent_1');
+        const timer = el?.['timer'];
+        assert.equal(timer?.['timeDate'], '=date and time("2026-01-01T00:00:00Z")');
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('update timer.timeDuration throws on message boundary event', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupModel('proc', cwd);
+        await append(['user-task', 'Review'], cwd); // Activity_1
+        await append(['--boundary', 'message', 'Msg'], cwd); // BoundaryEvent_1 (message, not timer)
+        await assert.rejects(() => update(['timer.timeDuration', 'PT1H'], cwd), /bpmn:timerEventDefinition/);
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('update timer.timeDuration throws on error boundary event', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupModel('proc', cwd);
+        await append(['user-task', 'Review'], cwd); // Activity_1
+        await append(['--boundary', 'error', 'Err'], cwd); // BoundaryEvent_1 (error, not timer)
+        await assert.rejects(() => update(['timer.timeDuration', 'PT1H'], cwd), /bpmn:timerEventDefinition/);
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('update zeebe:userTask.disabled false restores zeebe:UserTask marker', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupWithTask(cwd);
+        await update(['zeebe:userTask.disabled', 'true'], cwd);
+        await update(['zeebe:userTask.disabled', 'false'], cwd);
+        const status = await getStatus(cwd);
+        const proc = status['process'];
+        const elements = proc['elements'];
+        const el = elements.find((e) => e['id'] === 'Activity_1');
+        const zeebe = el?.['zeebe'];
+        assert.equal(zeebe?.['userTask'], true, 'zeebe:UserTask marker should be restored');
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('update zeebe:userTask.disabled throws on non-user-task', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupWithGateway(cwd);
+        await assert.rejects(() => update(['zeebe:userTask.disabled', 'true'], cwd), /can only be set on user-task/);
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+// --- zeebe:formDefinition (user-task only) ---
+test('update zeebe:formDefinition.formId sets formId on user-task', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupWithTask(cwd);
+        await update(['zeebe:formDefinition.formId', 'review-form'], cwd);
+        const status = await getStatus(cwd);
+        const proc = status['process'];
+        const elements = proc['elements'];
+        const el = elements.find((e) => e['id'] === 'Activity_1');
+        const zeebe = el?.['zeebe'];
+        const fd = zeebe?.['formDefinition'];
+        assert.equal(fd?.['formId'], 'review-form');
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('update zeebe:formDefinition.formKey sets formKey on user-task', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupWithTask(cwd);
+        await update(['zeebe:formDefinition.formKey', 'camunda-forms:bpmn:review'], cwd);
+        const status = await getStatus(cwd);
+        const proc = status['process'];
+        const elements = proc['elements'];
+        const el = elements.find((e) => e['id'] === 'Activity_1');
+        const zeebe = el?.['zeebe'];
+        const fd = zeebe?.['formDefinition'];
+        assert.equal(fd?.['formKey'], 'camunda-forms:bpmn:review');
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('update zeebe:formDefinition.externalReference sets externalReference on user-task', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupWithTask(cwd);
+        await update(['zeebe:formDefinition.externalReference', 'https://example.com/form'], cwd);
+        const status = await getStatus(cwd);
+        const proc = status['process'];
+        const elements = proc['elements'];
+        const el = elements.find((e) => e['id'] === 'Activity_1');
+        const zeebe = el?.['zeebe'];
+        const fd = zeebe?.['formDefinition'];
+        assert.equal(fd?.['externalReference'], 'https://example.com/form');
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('update zeebe:formDefinition.bindingType sets bindingType on user-task', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupWithTask(cwd);
+        await update(['zeebe:formDefinition.bindingType', 'deployment'], cwd);
+        const status = await getStatus(cwd);
+        const proc = status['process'];
+        const elements = proc['elements'];
+        const el = elements.find((e) => e['id'] === 'Activity_1');
+        const zeebe = el?.['zeebe'];
+        const fd = zeebe?.['formDefinition'];
+        assert.equal(fd?.['bindingType'], 'deployment');
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('update zeebe:formDefinition.versionTag sets versionTag on user-task', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupWithTask(cwd);
+        await update(['zeebe:formDefinition.bindingType', 'versionTag'], cwd);
+        await update(['zeebe:formDefinition.versionTag', 'v1.2'], cwd);
+        const status = await getStatus(cwd);
+        const proc = status['process'];
+        const elements = proc['elements'];
+        const el = elements.find((e) => e['id'] === 'Activity_1');
+        const zeebe = el?.['zeebe'];
+        const fd = zeebe?.['formDefinition'];
+        assert.equal(fd?.['bindingType'], 'versionTag');
+        assert.equal(fd?.['versionTag'], 'v1.2');
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('update zeebe:formDefinition.formId clears formKey and externalReference', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupWithTask(cwd);
+        await update(['zeebe:formDefinition.formKey', 'old-key'], cwd);
+        await update(['zeebe:formDefinition.externalReference', 'https://example.com/form'], cwd);
+        await update(['zeebe:formDefinition.formId', 'review-form'], cwd);
+        const status = await getStatus(cwd);
+        const proc = status['process'];
+        const elements = proc['elements'];
+        const el = elements.find((e) => e['id'] === 'Activity_1');
+        const zeebe = el?.['zeebe'];
+        const fd = zeebe?.['formDefinition'];
+        assert.equal(fd?.['formId'], 'review-form');
+        assert.equal(fd?.['formKey'], undefined);
+        assert.equal(fd?.['externalReference'], undefined);
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('update zeebe:formDefinition.formKey clears formId and externalReference', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupWithTask(cwd);
+        await update(['zeebe:formDefinition.formId', 'my-form'], cwd);
+        await update(['zeebe:formDefinition.formKey', 'camunda-forms:bpmn:review'], cwd);
+        const status = await getStatus(cwd);
+        const proc = status['process'];
+        const elements = proc['elements'];
+        const el = elements.find((e) => e['id'] === 'Activity_1');
+        const zeebe = el?.['zeebe'];
+        const fd = zeebe?.['formDefinition'];
+        assert.equal(fd?.['formKey'], 'camunda-forms:bpmn:review');
+        assert.equal(fd?.['formId'], undefined);
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('update zeebe:formDefinition.formId updates existing value', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupWithTask(cwd);
+        await update(['zeebe:formDefinition.formId', 'old-form'], cwd);
+        await update(['zeebe:formDefinition.formId', 'new-form'], cwd);
+        const status = await getStatus(cwd);
+        const proc = status['process'];
+        const elements = proc['elements'];
+        const el = elements.find((e) => e['id'] === 'Activity_1');
+        const zeebe = el?.['zeebe'];
+        const fd = zeebe?.['formDefinition'];
+        assert.equal(fd?.['formId'], 'new-form');
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('update zeebe:formDefinition.formId throws on service-task', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupModel('proc', cwd);
+        await append(['service-task', 'Do Work'], cwd);
+        await assert.rejects(() => update(['zeebe:formDefinition.formId', 'my-form'], cwd), /user task/);
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('update zeebe:formDefinition.formId throws on exclusive-gateway', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupWithGateway(cwd);
+        await assert.rejects(() => update(['zeebe:formDefinition.formId', 'my-form'], cwd), /user task/);
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('update zeebe:formDefinition throws for unknown sub-property', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupWithTask(cwd);
+        await assert.rejects(() => update(['zeebe:formDefinition.unknownProp', 'val'], cwd), /Unknown zeebe:formDefinition property/);
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+// --- zeebe:adHoc ---
+test('update zeebe:adHoc.outputCollection sets outputCollection on ad-hoc sub-process', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupWithAdHoc(cwd);
+        await update(['zeebe:adHoc.outputCollection', 'toolCallResults'], cwd);
+        const status = await getStatus(cwd);
+        const proc = status['process'];
+        const elements = proc['elements'];
+        const el = elements.find((e) => e['id'] === 'Activity_1');
+        const zeebe = el?.['zeebe'];
+        const adHoc = zeebe?.['adHoc'];
+        assert.equal(adHoc?.['outputCollection'], 'toolCallResults');
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('update zeebe:adHoc.outputElement sets outputElement on ad-hoc sub-process', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupWithAdHoc(cwd);
+        await update(['zeebe:adHoc.outputElement', '={id: toolCall.id}'], cwd);
+        const status = await getStatus(cwd);
+        const proc = status['process'];
+        const elements = proc['elements'];
+        const el = elements.find((e) => e['id'] === 'Activity_1');
+        const zeebe = el?.['zeebe'];
+        const adHoc = zeebe?.['adHoc'];
+        assert.equal(adHoc?.['outputElement'], '={id: toolCall.id}');
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('update zeebe:adHoc.activeElementsCollection sets activeElementsCollection on ad-hoc sub-process', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupWithAdHoc(cwd);
+        await update(['zeebe:adHoc.activeElementsCollection', '=activeTools'], cwd);
+        const status = await getStatus(cwd);
+        const proc = status['process'];
+        const elements = proc['elements'];
+        const el = elements.find((e) => e['id'] === 'Activity_1');
+        const zeebe = el?.['zeebe'];
+        const adHoc = zeebe?.['adHoc'];
+        assert.equal(adHoc?.['activeElementsCollection'], '=activeTools');
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('update zeebe:adHoc.outputCollection updates existing zeebe:AdHoc element', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupWithAdHoc(cwd);
+        await update(['zeebe:adHoc.outputCollection', 'results1'], cwd);
+        await update(['zeebe:adHoc.outputCollection', 'results2'], cwd);
+        const status = await getStatus(cwd);
+        const proc = status['process'];
+        const elements = proc['elements'];
+        const el = elements.find((e) => e['id'] === 'Activity_1');
+        const zeebe = el?.['zeebe'];
+        const adHoc = zeebe?.['adHoc'];
+        assert.equal(adHoc?.['outputCollection'], 'results2');
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('update zeebe:adHoc.outputCollection throws on non-ad-hoc element', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupWithTask(cwd);
+        await assert.rejects(() => update(['zeebe:adHoc.outputCollection', 'results'], cwd), /ad-hoc sub-process/);
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('update zeebe:adHoc.outputElement throws on non-ad-hoc element', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupWithTask(cwd);
+        await assert.rejects(() => update(['zeebe:adHoc.outputElement', '=result'], cwd), /ad-hoc sub-process/);
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('update zeebe:adHoc.activeElementsCollection throws on non-ad-hoc element', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupWithTask(cwd);
+        await assert.rejects(() => update(['zeebe:adHoc.activeElementsCollection', '=tools'], cwd), /ad-hoc sub-process/);
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('update zeebe:adHoc.outputElement updates existing value', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupWithAdHoc(cwd);
+        await update(['zeebe:adHoc.outputElement', '={id: a}'], cwd);
+        await update(['zeebe:adHoc.outputElement', '={id: b}'], cwd);
+        const status = await getStatus(cwd);
+        const proc = status['process'];
+        const elements = proc['elements'];
+        const el = elements.find((e) => e['id'] === 'Activity_1');
+        const zeebe = el?.['zeebe'];
+        const adHoc = zeebe?.['adHoc'];
+        assert.equal(adHoc?.['outputElement'], '={id: b}');
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('update zeebe:adHoc.activeElementsCollection updates existing value', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupWithAdHoc(cwd);
+        await update(['zeebe:adHoc.activeElementsCollection', '=toolsA'], cwd);
+        await update(['zeebe:adHoc.activeElementsCollection', '=toolsB'], cwd);
+        const status = await getStatus(cwd);
+        const proc = status['process'];
+        const elements = proc['elements'];
+        const el = elements.find((e) => e['id'] === 'Activity_1');
+        const zeebe = el?.['zeebe'];
+        const adHoc = zeebe?.['adHoc'];
+        assert.equal(adHoc?.['activeElementsCollection'], '=toolsB');
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('update zeebe:adHoc all three properties share one zeebe:AdHoc element', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupWithAdHoc(cwd);
+        await update(['zeebe:adHoc.outputCollection', 'toolCallResults'], cwd);
+        await update(['zeebe:adHoc.outputElement', '={id: toolCall.id}'], cwd);
+        await update(['zeebe:adHoc.activeElementsCollection', '=activeTools'], cwd);
+        const status = await getStatus(cwd);
+        const proc = status['process'];
+        const elements = proc['elements'];
+        const el = elements.find((e) => e['id'] === 'Activity_1');
+        const zeebe = el?.['zeebe'];
+        const adHoc = zeebe?.['adHoc'];
+        assert.equal(adHoc?.['outputCollection'], 'toolCallResults');
+        assert.equal(adHoc?.['outputElement'], '={id: toolCall.id}');
+        assert.equal(adHoc?.['activeElementsCollection'], '=activeTools');
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('update zeebe:adHoc unknown key throws', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupWithAdHoc(cwd);
+        await assert.rejects(() => update(['zeebe:adHoc.unknown', 'val'], cwd), (err) => {
+            assert.ok(err.message.includes('outputCollection'), 'should mention outputCollection');
+            assert.ok(err.message.includes('outputElement'), 'should mention outputElement');
+            assert.ok(err.message.includes('activeElementsCollection'), 'should mention activeElementsCollection');
+            return true;
+        });
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+// --- update id ---
+test('update id renames cursor element and updates cursor state', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupWithTask(cwd);
+        await update(['id', 'ReviewTask'], cwd);
+        const status = await getStatus(cwd);
+        assert.equal(status['cursor'], 'ReviewTask');
+        const proc = status['process'];
+        const elements = proc['elements'];
+        const el = elements.find((e) => e['id'] === 'ReviewTask');
+        assert.ok(el, 'element with new ID should exist');
+        assert.equal(el?.['name'], 'Review');
+        const old = elements.find((e) => e['id'] === 'Activity_1');
+        assert.ok(!old, 'old ID should no longer exist');
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('update id updates incoming/outgoing flow references', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupWithTask(cwd);
+        await update(['id', 'ReviewTask'], cwd);
+        const status = await getStatus(cwd);
+        const proc = status['process'];
+        const flows = proc['flows'];
+        const flow = flows.find((f) => f['target'] === 'ReviewTask');
+        assert.ok(flow, 'flow targeting new ID should exist');
+        assert.equal(flow?.['source'], 'StartEvent_1');
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('update id does not update cursor when targeting non-cursor element explicitly', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupModel('proc', cwd);
+        await append(['user-task', 'Review'], cwd); // Activity_1, cursor → Activity_1
+        await append(['service-task', 'Execute'], cwd); // Activity_2, cursor → Activity_2
+        await update(['Activity_1', 'id', 'ReviewTask'], cwd); // rename Activity_1, cursor stays Activity_2
+        const { readState: rs } = await import('../state.js');
+        const state = rs(cwd);
+        assert.equal(state.cursor, 'Activity_2');
+        const status = await getStatus(cwd);
+        const proc = status['process'];
+        const elements = proc['elements'];
+        assert.ok(elements.find((e) => e['id'] === 'ReviewTask'), 'ReviewTask should exist');
+        assert.ok(elements.find((e) => e['id'] === 'Activity_2'), 'Activity_2 cursor should still exist');
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('update id rejects invalid ID format', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupWithTask(cwd);
+        await assert.rejects(() => update(['id', '123Invalid'], cwd), /Invalid ID/);
+        await assert.rejects(() => update(['id', 'has space'], cwd), /Invalid ID/);
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('update id rejects duplicate ID', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupModel('proc', cwd);
+        await append(['user-task', 'Review'], cwd); // Activity_1
+        await append(['service-task', 'Execute'], cwd); // Activity_2
+        await assert.rejects(() => update(['id', 'Activity_1'], cwd), /already used/);
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('update id allows underscore and dot in semantic ID', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupWithTask(cwd);
+        await update(['id', 'Order_Validation.Task'], cwd);
+        const status = await getStatus(cwd);
+        const proc = status['process'];
+        const elements = proc['elements'];
+        assert.ok(elements.find((e) => e['id'] === 'Order_Validation.Task'), 'semantic ID with dots/underscores should work');
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('update id allows hyphen in semantic ID', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupWithTask(cwd);
+        await update(['id', 'Order-Validation-Task'], cwd);
+        const status = await getStatus(cwd);
+        const proc = status['process'];
+        const elements = proc['elements'];
+        assert.ok(elements.find((e) => e['id'] === 'Order-Validation-Task'), 'semantic ID with hyphens should work');
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('update id renames a gateway element', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupWithGateway(cwd);
+        await update(['id', 'ApprovalDecision'], cwd);
+        const status = await getStatus(cwd);
+        assert.equal(status['cursor'], 'ApprovalDecision');
+        const proc = status['process'];
+        const elements = proc['elements'];
+        const el = elements.find((e) => e['id'] === 'ApprovalDecision');
+        assert.ok(el, 'ApprovalDecision gateway should exist');
+        assert.equal(el?.['name'], 'Decision');
+        assert.ok(!elements.find((e) => e['id'] === 'Gateway_1'), 'old Gateway_1 ID should no longer exist');
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('update id with same ID is a no-op', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupWithTask(cwd);
+        await update(['id', 'Activity_1'], cwd);
+        const status = await getStatus(cwd);
+        const proc = status['process'];
+        const elements = proc['elements'];
+        assert.ok(elements.find((e) => e['id'] === 'Activity_1'), 'element should still exist with same ID');
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+// --- Flag-based interface ---
+test('update --task-type flag sets zeebe:taskDefinition.type', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupWithTask(cwd);
+        await update(['--task-type', 'my-worker'], cwd);
+        const status = await getStatus(cwd);
+        const proc = status['process'];
+        const elements = proc['elements'];
+        const el = elements.find((e) => e['id'] === 'Activity_1');
+        const zeebe = el?.['zeebe'];
+        assert.equal(zeebe?.['taskDefinition']?.['type'], 'my-worker');
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('update --name flag renames cursor element', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupWithTask(cwd);
+        await update(['--name', 'Renamed Task'], cwd);
+        const status = await getStatus(cwd);
+        const proc = status['process'];
+        const elements = proc['elements'];
+        const el = elements.find((e) => e['id'] === 'Activity_1');
+        assert.equal(el?.['name'], 'Renamed Task');
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('update Activity_1 --task-type with explicit element ID and flag', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupWithTask(cwd);
+        await append(['service-task', 'Other'], cwd); // Activity_2, cursor moves
+        await update(['Activity_1', '--task-type', 'worker-a'], cwd); // target Activity_1 explicitly
+        const status = await getStatus(cwd);
+        const proc = status['process'];
+        const elements = proc['elements'];
+        const el = elements.find((e) => e['id'] === 'Activity_1');
+        const zeebe = el?.['zeebe'];
+        assert.equal(zeebe?.['taskDefinition']?.['type'], 'worker-a');
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('update --input flag repeated adds multiple input mappings', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupWithTask(cwd);
+        await update(['--input', '=vars.x=localX', '--input', '=vars.y=localY'], cwd);
+        const status = await getStatus(cwd);
+        const proc = status['process'];
+        const elements = proc['elements'];
+        const el = elements.find((e) => e['id'] === 'Activity_1');
+        const zeebe = el?.['zeebe'];
+        const inputs = zeebe?.['ioMapping']?.['inputs'];
+        assert.equal(inputs?.length, 2);
+        assert.ok(inputs?.find((i) => i['source'] === '=vars.x' && i['target'] === 'localX'));
+        assert.ok(inputs?.find((i) => i['source'] === '=vars.y' && i['target'] === 'localY'));
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('update --assignee sets zeebe:assignmentDefinition.assignee on user-task', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupWithTask(cwd);
+        await update(['--assignee', '=user.name'], cwd);
+        const status = await getStatus(cwd);
+        const proc = status['process'];
+        const elements = proc['elements'];
+        const el = elements.find((e) => e['id'] === 'Activity_1');
+        const zeebe = el?.['zeebe'];
+        assert.equal(zeebe?.['assignmentDefinition']?.['assignee'], '=user.name');
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('update --execution-listener adds listener to activity', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupWithTask(cwd);
+        await update(['--execution-listener', 'start=my-listener'], cwd);
+        const status = await getStatus(cwd);
+        const proc = status['process'];
+        const elements = proc['elements'];
+        const el = elements.find((e) => e['id'] === 'Activity_1');
+        const zeebe = el?.['zeebe'];
+        const listeners = zeebe?.['executionListeners'];
+        assert.equal(listeners?.length, 1);
+        assert.equal(listeners?.[0]?.['eventType'], 'start');
+        assert.equal(listeners?.[0]?.['type'], 'my-listener');
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('update --script-expression sets zeebe:script.expression on script-task', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupModel('proc', cwd);
+        await append(['script-task', 'Compute'], cwd); // Activity_1
+        await update(['--script-expression', '=a + b', '--script-result-var', 'result'], cwd);
+        const status = await getStatus(cwd);
+        const proc = status['process'];
+        const elements = proc['elements'];
+        const el = elements.find((e) => e['id'] === 'Activity_1');
+        const zeebe = el?.['zeebe'];
+        const script = zeebe?.['script'];
+        assert.equal(script?.['expression'], '=a + b');
+        assert.equal(script?.['resultVariable'], 'result');
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('update --called-process-id sets zeebe:calledElement.processId on call-activity', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupModel('proc', cwd);
+        await append(['call-activity', 'Call Sub'], cwd); // Activity_1
+        await update(['--called-process-id', 'my-subprocess'], cwd);
+        const status = await getStatus(cwd);
+        const proc = status['process'];
+        const elements = proc['elements'];
+        const el = elements.find((e) => e['id'] === 'Activity_1');
+        const zeebe = el?.['zeebe'];
+        assert.equal(zeebe?.['calledElement']?.['processId'], 'my-subprocess');
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+// --- Inline Zeebe flags on append/create ---
+test('append service-task --task-type sets job type inline', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupModel('proc', cwd);
+        await append(['service-task', 'Deploy', '--task-type', 'deploy-service'], cwd);
+        const status = await getStatus(cwd);
+        const proc = status['process'];
+        const elements = proc['elements'];
+        const el = elements.find((e) => e['id'] === 'Activity_1');
+        const zeebe = el?.['zeebe'];
+        assert.equal(zeebe?.['taskDefinition']?.['type'], 'deploy-service');
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('create user-task --name flag sets label', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupModel('proc', cwd);
+        await create(['user-task', '--name', 'My Review Task'], cwd);
+        const status = await getStatus(cwd);
+        const proc = status['process'];
+        const elements = proc['elements'];
+        const el = elements.find((e) => e['id'] === 'Activity_1');
+        assert.equal(el?.['name'], 'My Review Task');
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+// --- New Zeebe property cases ---
+test('update zeebe:assignmentDefinition candidateGroups and candidateUsers', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupWithTask(cwd);
+        await update(['zeebe:assignmentDefinition.candidateGroups', '=groups'], cwd);
+        await update(['zeebe:assignmentDefinition.candidateUsers', '=users'], cwd);
+        const status = await getStatus(cwd);
+        const proc = status['process'];
+        const elements = proc['elements'];
+        const el = elements.find((e) => e['id'] === 'Activity_1');
+        const zeebe = el?.['zeebe'];
+        const ad = zeebe?.['assignmentDefinition'];
+        assert.equal(ad?.['candidateGroups'], '=groups');
+        assert.equal(ad?.['candidateUsers'], '=users');
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('update zeebe:taskSchedule.dueDate and followUpDate', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupWithTask(cwd);
+        await update(['zeebe:taskSchedule.dueDate', '=now() + duration("P1D")'], cwd);
+        await update(['zeebe:taskSchedule.followUpDate', '=now()'], cwd);
+        const status = await getStatus(cwd);
+        const proc = status['process'];
+        const elements = proc['elements'];
+        const el = elements.find((e) => e['id'] === 'Activity_1');
+        const zeebe = el?.['zeebe'];
+        const ts = zeebe?.['taskSchedule'];
+        assert.equal(ts?.['dueDate'], '=now() + duration("P1D")');
+        assert.equal(ts?.['followUpDate'], '=now()');
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('update zeebe:calledDecision.bindingType and versionTag', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupModel('proc', cwd);
+        await append(['business-rule-task', 'Evaluate Risk'], cwd); // Activity_1
+        await update(['zeebe:calledDecision.decisionId', 'risk-decision'], cwd);
+        await update(['zeebe:calledDecision.bindingType', 'versionTag'], cwd);
+        await update(['zeebe:calledDecision.versionTag', '1.0.0'], cwd);
+        const status = await getStatus(cwd);
+        const proc = status['process'];
+        const elements = proc['elements'];
+        const el = elements.find((e) => e['id'] === 'Activity_1');
+        const zeebe = el?.['zeebe'];
+        const cd = zeebe?.['calledDecision'];
+        assert.equal(cd?.['bindingType'], 'versionTag');
+        assert.equal(cd?.['versionTag'], '1.0.0');
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('update zeebe:calledElement.processId and propagateAllChildVariables', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupModel('proc', cwd);
+        await append(['call-activity', 'Call Sub'], cwd); // Activity_1
+        await update(['zeebe:calledElement.processId', 'my-sub'], cwd);
+        await update(['zeebe:calledElement.propagateAllChildVariables', 'false'], cwd);
+        const status = await getStatus(cwd);
+        const proc = status['process'];
+        const elements = proc['elements'];
+        const el = elements.find((e) => e['id'] === 'Activity_1');
+        const zeebe = el?.['zeebe'];
+        const ce = zeebe?.['calledElement'];
+        assert.equal(ce?.['processId'], 'my-sub');
+        assert.equal(ce?.['propagateAllChildVariables'], false);
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('update zeebe:subscription.correlationKey on message event', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupModel('proc', cwd);
+        await append(['message-intermediate-catch-event', 'Wait for Reply'], cwd);
+        await update(['zeebe:subscription.correlationKey', '=order.id'], cwd);
+        const status = await getStatus(cwd);
+        const proc = status['process'];
+        const elements = proc['elements'];
+        const el = elements.find((e) => e['id'] === 'Event_1');
+        const zeebe = el?.['zeebe'];
+        assert.equal(zeebe?.['subscription']?.['correlationKey'], '=order.id');
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('update zeebe:linkedResource adds linked resource to service-task', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupModel('proc', cwd);
+        await append(['service-task', 'Execute'], cwd); // Activity_1
+        await update(['zeebe:linkedResource', 'form-123', 'camunda-forms'], cwd);
+        const status = await getStatus(cwd);
+        const proc = status['process'];
+        const elements = proc['elements'];
+        const el = elements.find((e) => e['id'] === 'Activity_1');
+        const zeebe = el?.['zeebe'];
+        const resources = zeebe?.['linkedResources'];
+        assert.equal(resources?.length, 1);
+        assert.equal(resources?.[0]?.['resourceId'], 'form-123');
+        assert.equal(resources?.[0]?.['resourceType'], 'camunda-forms');
     }
     finally {
         cleanup(cwd);

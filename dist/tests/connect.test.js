@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { connect } from '../commands/connect.js';
 import { create } from '../commands/create.js';
 import { append } from '../commands/append.js';
+import { update } from '../commands/update.js';
 import { readState } from '../state.js';
 import { tmpDir, cleanup, setupModel, getStatus } from './helpers.js';
 test('connect creates sequence flow between two elements', async () => {
@@ -86,8 +87,7 @@ test('connect throws when elements are in different scopes', async () => {
         // Select Activity_1 first
         const { select } = await import('../commands/select.js');
         await select(['Activity_1'], cwd);
-        const { addChild } = await import('../commands/add-child.js');
-        await addChild(['start-event', 'Inner Start'], cwd); // StartEvent_2 inside Activity_1
+        await create(['--parent', 'start-event', 'Inner Start'], cwd); // StartEvent_2 inside Activity_1
         await assert.rejects(() => connect(['StartEvent_2', 'EndEvent_1'], cwd), /different scopes/);
     }
     finally {
@@ -100,6 +100,42 @@ test('connect throws without required arguments', async () => {
         await setupModel('proc', cwd);
         await assert.rejects(() => connect(['StartEvent_1'], cwd), /Usage/);
         await assert.rejects(() => connect([], cwd), /Usage/);
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('connect works with semantic IDs set via --id flag', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupModel('proc', cwd);
+        await append(['user-task', 'Review', '--id', 'ReviewTask'], cwd);
+        await append(['exclusive-gateway', 'Decision', '--id', 'ApprovalDecision'], cwd);
+        await connect(['ReviewTask', 'ApprovalDecision'], cwd);
+        const status = await getStatus(cwd);
+        const proc = status['process'];
+        const flows = proc['flows'];
+        const flow = flows.find((f) => f['source'] === 'ReviewTask' && f['target'] === 'ApprovalDecision');
+        assert.ok(flow, 'flow between semantic IDs should exist');
+    }
+    finally {
+        cleanup(cwd);
+    }
+});
+test('connect works with semantic IDs set via update id', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupModel('proc', cwd);
+        await append(['user-task', 'Review'], cwd); // Activity_1
+        await append(['exclusive-gateway', 'Decision'], cwd); // Gateway_1
+        await update(['Activity_1', 'id', 'ReviewTask'], cwd);
+        await update(['Gateway_1', 'id', 'ApprovalDecision'], cwd);
+        await connect(['ReviewTask', 'ApprovalDecision'], cwd);
+        const status = await getStatus(cwd);
+        const proc = status['process'];
+        const flows = proc['flows'];
+        const flow = flows.find((f) => f['source'] === 'ReviewTask' && f['target'] === 'ApprovalDecision');
+        assert.ok(flow, 'flow between renamed IDs should exist');
     }
     finally {
         cleanup(cwd);
