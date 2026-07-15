@@ -309,3 +309,28 @@ test('boundary-append on nested host: select-parent reaches the subprocess', asy
         cleanup(cwd);
     }
 });
+test('boundary-append on nested host: handler task chained off boundary event gets laid out', async () => {
+    const cwd = tmpDir();
+    try {
+        await setupModel('proc', cwd);
+        await append(['sub-process', 'My Sub'], cwd); // Activity_1
+        await create(['--parent', 'service-task', 'Tool A'], cwd); // Activity_2
+        await append(['--boundary', 'error', 'Tool Error'], cwd); // BoundaryEvent_1, cursor → BoundaryEvent_1
+        await append(['user-task', 'Handle Error'], cwd); // Activity_3, flow from BoundaryEvent_1
+        const state = readState();
+        const { definitions } = await loadFile(state.file);
+        const plane = definitions.diagrams?.[0]?.plane;
+        const handlerShape = (plane?.planeElement ?? []).find((pe) => {
+            const ref = pe['bpmnElement'];
+            const id = typeof ref === 'string' ? ref : ref?.['id'];
+            return id === 'Activity_3';
+        });
+        assert.ok(handlerShape, 'handler task DI shape should exist');
+        const bounds = handlerShape['bounds'];
+        assert.ok(bounds, 'handler task should have bounds');
+        assert.ok(bounds['x'] !== 0 || bounds['y'] !== 0, 'handler task should not be stuck at (0,0)');
+    }
+    finally {
+        cleanup(cwd);
+    }
+});

@@ -174,11 +174,21 @@ export function recomputeLayout(moddle: BpmnModdle, definitions: ModdleElement):
     const cOut = new Map<string, string[]>();
     const cIn = new Map<string, string[]>();
     for (const ce of childEls) { cOut.set(ce.id, []); cIn.set(ce.id, []); }
+    for (const be of childBoundaryEvents) { cOut.set(be.id, []); }
     for (const cf of childFlows) {
       const s: string = cf.sourceRef?.id ?? cf.sourceRef;
       const t: string = cf.targetRef?.id ?? cf.targetRef;
       cOut.get(s)?.push(t);
       cIn.get(t)?.push(s);
+    }
+
+    // Boundary events aren't laid out as BFS nodes (they're anchored to their host below),
+    // but their outgoing flows must still advance the layout — treat them as extensions of the host's own outgoing edges.
+    const hostToBoundaryOut = new Map<string, string[]>();
+    for (const be of childBoundaryEvents) {
+      const hostId: string = be.attachedToRef?.id ?? be.attachedToRef;
+      const existing = hostToBoundaryOut.get(hostId) ?? [];
+      hostToBoundaryOut.set(hostId, [...existing, ...(cOut.get(be.id) ?? [])]);
     }
 
     const cPos = new Map<string, { col: number; row: number }>();
@@ -198,7 +208,8 @@ export function recomputeLayout(moddle: BpmnModdle, definitions: ModdleElement):
       const row = Math.max(item.row, usedRow);
       cColRow.set(col, row + 1);
       cPos.set(item.id, { col, row });
-      (cOut.get(item.id) ?? []).forEach((nid, i) => {
+      const nexts = [...(cOut.get(item.id) ?? []), ...(hostToBoundaryOut.get(item.id) ?? [])];
+      nexts.forEach((nid, i) => {
         if (!cVisited.has(nid)) cQueue.push({ id: nid, col: col + 1, row: row + i });
       });
     }
