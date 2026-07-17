@@ -44,9 +44,9 @@ test('annotate does not move cursor', async () => {
     try {
         await setupModel('proc', cwd);
         await append(['user-task', 'Review'], cwd);
-        const stateBefore = readState(cwd);
+        const stateBefore = readState();
         await annotate(['Important note'], cwd);
-        const stateAfter = readState(cwd);
+        const stateAfter = readState();
         assert.equal(stateAfter.cursor, stateBefore.cursor, 'cursor must not move');
     }
     finally {

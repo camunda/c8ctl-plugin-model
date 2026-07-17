@@ -263,7 +263,7 @@ test('append --id sets semantic element ID', async () => {
         const proc = status['process'];
         const elements = proc['elements'];
         assert.ok(elements.find((e) => e['id'] === 'ReviewTask'), 'ReviewTask element should exist');
-        const state = readState(cwd);
+        const state = readState();
         assert.equal(state.cursor, 'ReviewTask');
     }
     finally {
