@@ -131,7 +131,9 @@ export function recomputeLayout(moddle, definitions) {
         const subShape = shapeMap.get(el.id);
         if (!subShape)
             continue;
-        const childEls = (el.flowElements ?? []).filter((c) => c.$type !== 'bpmn:SequenceFlow');
+        const childBoundaryEvents = (el.flowElements ?? []).filter((c) => c.$type === 'bpmn:BoundaryEvent');
+        const childBoundaryIds = new Set(childBoundaryEvents.map((c) => c.id));
+        const childEls = (el.flowElements ?? []).filter((c) => c.$type !== 'bpmn:SequenceFlow' && !childBoundaryIds.has(c.id));
         const childFlows = (el.flowElements ?? []).filter((c) => c.$type === 'bpmn:SequenceFlow');
         if (childEls.length === 0)
             continue;
@@ -141,11 +143,22 @@ export function recomputeLayout(moddle, definitions) {
             cOut.set(ce.id, []);
             cIn.set(ce.id, []);
         }
+        for (const be of childBoundaryEvents) {
+            cOut.set(be.id, []);
+        }
         for (const cf of childFlows) {
             const s = cf.sourceRef?.id ?? cf.sourceRef;
             const t = cf.targetRef?.id ?? cf.targetRef;
             cOut.get(s)?.push(t);
             cIn.get(t)?.push(s);
+        }
+        // Boundary events aren't laid out as BFS nodes (they're anchored to their host below),
+        // but their outgoing flows must still advance the layout — treat them as extensions of the host's own outgoing edges.
+        const hostToBoundaryOut = new Map();
+        for (const be of childBoundaryEvents) {
+            const hostId = be.attachedToRef?.id ?? be.attachedToRef;
+            const existing = hostToBoundaryOut.get(hostId) ?? [];
+            hostToBoundaryOut.set(hostId, [...existing, ...(cOut.get(be.id) ?? [])]);
         }
         const cPos = new Map();
         const cStarts = childEls.filter((ce) => (cIn.get(ce.id)?.length ?? 0) === 0);
@@ -162,7 +175,8 @@ export function recomputeLayout(moddle, definitions) {
             const row = Math.max(item.row, usedRow);
             cColRow.set(col, row + 1);
             cPos.set(item.id, { col, row });
-            (cOut.get(item.id) ?? []).forEach((nid, i) => {
+            const nexts = [...(cOut.get(item.id) ?? []), ...(hostToBoundaryOut.get(item.id) ?? [])];
+            nexts.forEach((nid, i) => {
                 if (!cVisited.has(nid))
                     cQueue.push({ id: nid, col: col + 1, row: row + i });
             });
@@ -199,25 +213,40 @@ export function recomputeLayout(moddle, definitions) {
             ceShape.bounds.width = ceSize.width;
             ceShape.bounds.height = ceSize.height;
         }
+        const childHostBoundaryCount = new Map();
+        for (const be of childBoundaryEvents) {
+            const hostId = be.attachedToRef?.id ?? be.attachedToRef;
+            const cp = cPos.get(hostId);
+            const beShape = shapeMap.get(be.id);
+            if (!cp || !beShape)
+                continue;
+            const hostEl = childEls.find((c) => c.id === hostId);
+            const hostSize = hostEl ? size(hostEl) : SIZES['default'];
+            const index = childHostBoundaryCount.get(hostId) ?? 0;
+            childHostBoundaryCount.set(hostId, index + 1);
+            const beSize = 36;
+            const hostCenterX = subLeft + CHILD_PAD + cp.col * CH_GAP;
+            const hostCenterY = subTop + CHILD_PAD + cp.row * CV_GAP;
+            beShape.bounds.x = hostCenterX - hostSize.width / 2 + 20 + index * 50 - beSize / 2;
+            beShape.bounds.y = hostCenterY + hostSize.height / 2 - beSize / 2;
+            beShape.bounds.width = beSize;
+            beShape.bounds.height = beSize;
+        }
         for (const cf of childFlows) {
             const srcId = cf.sourceRef?.id ?? cf.sourceRef;
             const tgtId = cf.targetRef?.id ?? cf.targetRef;
-            const scp = cPos.get(srcId);
-            const tcp = cPos.get(tgtId);
             const edge = edgeMap.get(cf.id);
-            if (!edge || !scp || !tcp)
+            const srcShape = shapeMap.get(srcId);
+            const tgtShape = shapeMap.get(tgtId);
+            if (!edge || !srcShape || !tgtShape)
                 continue;
-            const srcEl = childEls.find((c) => c.id === srcId);
-            const tgtEl = childEls.find((c) => c.id === tgtId);
-            const srcSize = srcEl ? size(srcEl) : SIZES['default'];
-            const tgtSize = tgtEl ? size(tgtEl) : SIZES['default'];
-            const sCX = subLeft + CHILD_PAD + scp.col * CH_GAP;
-            const sCY = subTop + CHILD_PAD + scp.row * CV_GAP;
-            const tCX = subLeft + CHILD_PAD + tcp.col * CH_GAP;
-            const tCY = subTop + CHILD_PAD + tcp.row * CV_GAP;
+            const sCX = srcShape.bounds.x + srcShape.bounds.width / 2;
+            const sCY = srcShape.bounds.y + srcShape.bounds.height / 2;
+            const tCX = tgtShape.bounds.x + tgtShape.bounds.width / 2;
+            const tCY = tgtShape.bounds.y + tgtShape.bounds.height / 2;
             edge.waypoint = [
-                moddle.create('dc:Point', { x: sCX + srcSize.width / 2, y: sCY }),
-                moddle.create('dc:Point', { x: tCX - tgtSize.width / 2, y: tCY }),
+                moddle.create('dc:Point', { x: sCX + srcShape.bounds.width / 2, y: sCY }),
+                moddle.create('dc:Point', { x: tCX - tgtShape.bounds.width / 2, y: tCY }),
             ];
         }
     }

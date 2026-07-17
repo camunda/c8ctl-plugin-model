@@ -674,7 +674,8 @@ export function addBoundaryEvent(
     outgoing: [],
   });
 
-  process.flowElements = [...(process.flowElements ?? []), boundaryEvent];
+  const container = findContainerOf(definitions, hostId) ?? process;
+  container.flowElements = [...(container.flowElements ?? []), boundaryEvent];
 
   const diagram = definitions.diagrams?.[0];
   const plane = diagram?.plane;
