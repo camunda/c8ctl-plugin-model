@@ -133,7 +133,7 @@ test('create --id sets semantic element ID', async () => {
         const proc = status['process'];
         const elements = proc['elements'];
         assert.ok(elements.find((e) => e['id'] === 'EndDone'), 'EndDone element should exist');
-        const state = readState(cwd);
+        const state = readState();
         assert.equal(state.cursor, 'EndDone');
     }
     finally {

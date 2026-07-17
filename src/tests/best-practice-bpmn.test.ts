@@ -136,7 +136,7 @@ test('best-practice: straight-through process with service tasks', async () => {
     assert.ok(statusCaptured.length > 0, 'status should output JSON');
 
     // -- lint --
-    const state = readState(cwd);
+    const state = readState();
     const issues = await lintBpmn(state.file);
     assert.deepEqual(issues, [], `bpmnlint issues:\n${issues.join('\n')}`);
   } finally {
@@ -180,7 +180,7 @@ test('best-practice: exclusive gateway branching with conditions', async () => {
     assert.equal(condFlows.length, 2, 'two conditional flows from gateway');
 
     // -- lint --
-    const state = readState(cwd);
+    const state = readState();
     const issues = await lintBpmn(state.file);
     assert.deepEqual(issues, [], `bpmnlint issues:\n${issues.join('\n')}`);
   } finally {
@@ -228,7 +228,7 @@ test('best-practice: parallel gateway fork and join', async () => {
     assert.equal(gateways.length, 2, 'fork and join gateways');
 
     // -- lint --
-    const state = readState(cwd);
+    const state = readState();
     const issues = await lintBpmn(state.file);
     assert.deepEqual(issues, [], `bpmnlint issues:\n${issues.join('\n')}`);
   } finally {
@@ -284,7 +284,7 @@ test('best-practice: sub-process with boundary timer escalation', async () => {
     assert.equal(boundary['cancelActivity'], false, 'non-interrupting');
 
     // -- lint --
-    const state = readState(cwd);
+    const state = readState();
     const issues = await lintBpmn(state.file);
     assert.deepEqual(issues, [], `bpmnlint issues:\n${issues.join('\n')}`);
   } finally {
@@ -330,7 +330,7 @@ test('best-practice: event sub-process for global error handling', async () => {
     assert.ok(errorStart, 'error start event exists in event sub-process');
 
     // -- lint --
-    const state = readState(cwd);
+    const state = readState();
     const issues = await lintBpmn(state.file);
     assert.deepEqual(issues, [], `bpmnlint issues:\n${issues.join('\n')}`);
   } finally {
@@ -370,7 +370,7 @@ test('best-practice: parallel multi-instance service task', async () => {
     assert.equal(loopChar?.['isSequential'], false);
 
     // -- lint --
-    const state = readState(cwd);
+    const state = readState();
     const issues = await lintBpmn(state.file);
     assert.deepEqual(issues, [], `bpmnlint issues:\n${issues.join('\n')}`);
   } finally {
@@ -410,7 +410,7 @@ test('best-practice: business rule task calling DMN decision', async () => {
     assert.equal(cd?.['resultVariable'], 'riskLevel');
 
     // -- lint --
-    const state = readState(cwd);
+    const state = readState();
     const issues = await lintBpmn(state.file);
     assert.deepEqual(issues, [], `bpmnlint issues:\n${issues.join('\n')}`);
   } finally {
@@ -444,7 +444,7 @@ test('best-practice: text annotations on process elements', async () => {
     assert.equal(artifacts[0]['associatedTo'], 'Activity_1');
 
     // -- lint --
-    const state = readState(cwd);
+    const state = readState();
     const issues = await lintBpmn(state.file);
     assert.deepEqual(issues, [], `bpmnlint issues:\n${issues.join('\n')}`);
   } finally {
@@ -476,7 +476,7 @@ test('best-practice: multi-file workflow with select-file and reset', async () =
 
     // Switch back to first process
     await selectFile(['main-process'], cwd);
-    const state = readState(cwd);
+    const state = readState();
     assert.ok(state.file.endsWith('main-process.bpmn'));
 
     // -- lint both files --
@@ -484,7 +484,7 @@ test('best-practice: multi-file workflow with select-file and reset', async () =
     assert.deepEqual(issues1, [], `main-process lint issues:\n${issues1.join('\n')}`);
 
     await selectFile(['sub-workflow'], cwd);
-    const state2 = readState(cwd);
+    const state2 = readState();
     const issues2 = await lintBpmn(state2.file);
     assert.deepEqual(issues2, [], `sub-workflow lint issues:\n${issues2.join('\n')}`);
   } finally {
@@ -521,7 +521,7 @@ test('best-practice: zeebe properties and name updates', async () => {
     assert.ok(props?.some((p) => p['name'] === 'inbound.type'));
 
     // -- lint --
-    const state = readState(cwd);
+    const state = readState();
     const issues = await lintBpmn(state.file);
     assert.deepEqual(issues, [], `bpmnlint issues:\n${issues.join('\n')}`);
   } finally {
@@ -564,7 +564,7 @@ test('best-practice: ad-hoc sub-process with ordering', async () => {
     assert.equal(children.length, 2);
 
     // -- lint --
-    const state = readState(cwd);
+    const state = readState();
     const issues = await lintBpmn(state.file);
     assert.deepEqual(issues, [], `bpmnlint issues:\n${issues.join('\n')}`);
   } finally {
@@ -603,7 +603,7 @@ test('best-practice: comprehensive event-based and message patterns', async () =
     assert.equal(boundary['cancelActivity'], true);
 
     // -- lint --
-    const state = readState(cwd);
+    const state = readState();
     const issues = await lintBpmn(state.file);
     assert.deepEqual(issues, [], `bpmnlint issues:\n${issues.join('\n')}`);
   } finally {

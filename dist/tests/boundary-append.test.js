@@ -211,7 +211,7 @@ test('boundary-append --id sets semantic element ID', async () => {
         const proc = status['process'];
         const elements = proc['elements'];
         assert.ok(elements.find((e) => e['id'] === 'BoundaryEvent_Timeout'), 'semantic ID should exist');
-        const state = readState(cwd);
+        const state = readState();
         assert.equal(state.cursor, 'BoundaryEvent_Timeout');
     }
     finally {
