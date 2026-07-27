@@ -11,7 +11,7 @@ export async function annotate(args, cwd, logger) {
     const text = textParts.join(' ');
     if (!text)
         throw new Error('Usage: c8ctl model annotate <text> [elementId]');
-    const state = readState(cwd);
+    const state = readState();
     const elementId = hasExplicitTarget ? lastArg : state.cursor;
     const { moddle, definitions } = await loadFile(state.file);
     if (!getElementById(definitions, elementId)) {

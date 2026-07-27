@@ -132,7 +132,7 @@ test('add-child --id sets semantic element ID', async () => {
     const sub = elements.find((e) => e['id'] === 'Activity_1') as Record<string, unknown> | undefined;
     const children = sub?.['children'] as Array<Record<string, unknown>>;
     assert.ok(children?.find((c) => c['id'] === 'ReviewTask'), 'ReviewTask child should exist');
-    const state = readState(cwd);
+    const state = readState();
     assert.equal(state.cursor, 'ReviewTask');
   } finally {
     cleanup(cwd);

@@ -93,11 +93,11 @@ test('document does not move cursor', async () => {
   try {
     await setupModel('proc', cwd);
     await append(['user-task', 'Review'], cwd);
-    const stateBefore = readState(cwd);
+    const stateBefore = readState();
 
     await document(['Some docstring'], cwd);
 
-    const stateAfter = readState(cwd);
+    const stateAfter = readState();
     assert.equal(stateAfter.cursor, stateBefore.cursor, 'cursor must not move');
   } finally {
     cleanup(cwd);
@@ -193,7 +193,7 @@ test('document sets documentation on a non-start-event element via cursor', asyn
   try {
     await setupModel('proc', cwd);
     await append(['user-task', 'Review'], cwd);
-    const state = readState(cwd);
+    const state = readState();
     const userTaskId = state.cursor;
 
     await document(['Complete within SLA'], cwd);

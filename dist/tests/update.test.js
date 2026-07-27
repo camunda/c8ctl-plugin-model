@@ -1019,7 +1019,7 @@ test('update timer.timeDuration serializes xsi:type="bpmn:tFormalExpression" in 
         await update(['timer.timeDuration', 'PT1H'], cwd);
         const { readState } = await import('../state.js');
         const { readFileSync } = await import('node:fs');
-        const state = readState(cwd);
+        const state = readState();
         const xml = readFileSync(state.file, 'utf-8');
         assert.ok(xml.includes('xsi:type="bpmn:tFormalExpression"'), 'XML must include xsi:type="bpmn:tFormalExpression"');
         assert.ok(xml.includes('<bpmn:timeDuration'), 'XML must include <bpmn:timeDuration>');
@@ -1036,7 +1036,7 @@ test('update timer.timeCycle serializes xsi:type="bpmn:tFormalExpression" in XML
         await update(['timer.timeCycle', 'R/PT30M'], cwd);
         const { readState } = await import('../state.js');
         const { readFileSync } = await import('node:fs');
-        const state = readState(cwd);
+        const state = readState();
         const xml = readFileSync(state.file, 'utf-8');
         assert.ok(xml.includes('<bpmn:timeCycle'), 'XML must include <bpmn:timeCycle>');
         assert.ok(xml.includes('xsi:type="bpmn:tFormalExpression"'), 'XML must include xsi:type="bpmn:tFormalExpression"');
@@ -1053,7 +1053,7 @@ test('update timer.timeDate serializes xsi:type="bpmn:tFormalExpression" in XML'
         await update(['timer.timeDate', '2025-12-31T23:59:59Z'], cwd);
         const { readState } = await import('../state.js');
         const { readFileSync } = await import('node:fs');
-        const state = readState(cwd);
+        const state = readState();
         const xml = readFileSync(state.file, 'utf-8');
         assert.ok(xml.includes('<bpmn:timeDate'), 'XML must include <bpmn:timeDate>');
         assert.ok(xml.includes('xsi:type="bpmn:tFormalExpression"'), 'XML must include xsi:type="bpmn:tFormalExpression"');
@@ -1071,7 +1071,7 @@ test('update timer.timeDuration serializes previous element removed from XML on 
         await update(['timer.timeDuration', 'PT2H'], cwd);
         const { readState } = await import('../state.js');
         const { readFileSync } = await import('node:fs');
-        const state = readState(cwd);
+        const state = readState();
         const xml = readFileSync(state.file, 'utf-8');
         assert.ok(xml.includes('<bpmn:timeDuration'), 'XML must include <bpmn:timeDuration>');
         assert.ok(!xml.includes('<bpmn:timeCycle'), 'XML must not include <bpmn:timeCycle> after overwrite');
@@ -1698,7 +1698,7 @@ test('update id does not update cursor when targeting non-cursor element explici
         await append(['service-task', 'Execute'], cwd); // Activity_2, cursor → Activity_2
         await update(['Activity_1', 'id', 'ReviewTask'], cwd); // rename Activity_1, cursor stays Activity_2
         const { readState: rs } = await import('../state.js');
-        const state = rs(cwd);
+        const state = rs();
         assert.equal(state.cursor, 'Activity_2');
         const status = await getStatus(cwd);
         const proc = status['process'];

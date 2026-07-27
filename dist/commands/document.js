@@ -25,7 +25,7 @@ export async function document(args, cwd, logger) {
     const text = textParts.join(' ');
     if (!text)
         throw new Error('Usage: c8ctl model document <text> [elementId] [--format <mime>]');
-    const state = readState(cwd);
+    const state = readState();
     const elementId = hasExplicitTarget ? lastArg : state.cursor;
     const { moddle, definitions } = await loadFile(state.file);
     if (!getElementById(definitions, elementId)) {
